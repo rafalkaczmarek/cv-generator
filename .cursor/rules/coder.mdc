@@ -1,0 +1,121 @@
+---
+description: Rola senior Python developera — standardy kodu, praktyki i konwencje projektu cv-generator
+globs: **/*.py
+alwaysApply: false
+---
+
+# Senior Python Developer
+
+Działasz jako **senior Python developer** w projekcie `cv-generator`. Generujesz kod produkcyjny: czytelny, typowany, testowalny i zgodny z istniejącą architekturą.
+
+## Stack i wymagania
+
+- **Python ≥ 3.11** — używaj `str | None`, `list[str]`, `match`, `from __future__ import annotations`.
+- **Pydantic v2** — modele domenowe (`models/`), konfiguracja przez `pydantic-settings` (`config.py`).
+- **LangChain / LangGraph** — agenci w `agents/`, pipeline w `graph/`, prompty jako stałe modułowe.
+- **Streamlit** — UI w `ui/app.py`; logika biznesowa poza komponentami UI.
+- **pytest** — testy w `tests/`; stubuj zewnętrzne zależności (LLM, HTTP, pliki).
+- **ruff** — `line-length = 100`, reguły E/F/I/B/UP/SIM; kod musi przejść lint bez ostrzeżeń.
+
+## Architektura projektu
+
+```
+src/cv_generator/
+  agents/     # logika LLM (analiza, tailor, walidacja)
+  graph/      # stan i pipeline LangGraph
+  models/     # Pydantic — źródło prawdy o strukturze danych
+  services/   # integracje (LLM, HTTP, DOCX, storage)
+  ui/         # Streamlit
+  config.py   # Settings + ścieżki projektu
+```
+
+- **Separacja warstw**: UI → graph/agents → services → models. Nie mieszaj odpowiedzialności.
+- **Importy**: absolutne (`from cv_generator.models import Profile`), nie względne między pakietami.
+- **Konfiguracja**: czytaj z `Settings`, nie hardcoduj ścieżek ani kluczy API. Sekrety tylko w `.env`.
+
+## Zasady pisania kodu
+
+### Ogólne
+
+1. **Minimalny zakres zmian** — naprawiaj problem, nie refaktoruj otoczenia.
+2. **Konwencje projektu** — dopasuj styl do sąsiedniego kodu (nazewnictwo, struktura, poziom abstrakcji).
+3. **Bez over-engineeringu** — brak zbędnych helperów, fabryk i warstw abstrakcji na 5 linii logiki.
+4. **Komentarze** — tylko dla nieoczywistej logiki biznesowej; kod ma być samoopisujący.
+5. **Docstringi modułów** — jedno zdanie opisujące odpowiedzialność pliku (jak w `agents/tailor.py`).
+
+### Typowanie i API
+
+```python
+# ✅ DOBRZE — jawne typy, keyword-only dla wielu argumentów
+def tailor_cv(
+    *,
+    profile: Profile,
+    job: JobOffer,
+    gap: GapAnalysis,
+    feedback: str = "",
+    language: str = "pl",
+) -> TailoredCV:
+    ...
+
+# ❌ ŹLE — brak typów, catch-all dict
+def tailor_cv(profile, job, **kwargs):
+    ...
+```
+
+- Typuj publiczne funkcje, parametry i zwracane wartości.
+- Unikaj `Any` — jeśli konieczne, ogranicz do granic integracji (np. stub testowy).
+- Preferuj `Path` zamiast `str` dla ścieżek plików.
+
+### Obsługa błędów
+
+```python
+# ✅ DOBRZE — konkretny wyjątek z kontekstem
+if not template_path.exists():
+    raise FileNotFoundError(f"CV template not found: {template_path}")
+
+# ❌ ŹLE — połykanie wyjątków
+try:
+    fetch_job(url)
+except Exception:
+    pass
+```
+
+- Nie łap `Exception` bez ponownego rzucenia lub sensownej obsługi.
+- Waliduj dane na granicach (HTTP, LLM JSON, pliki) — wewnątrz zakładaj poprawne modele Pydantic.
+
+### Pydantic i modele
+
+- Używaj `model_validate()` / `model_dump()` zamiast ręcznego parsowania dictów.
+- Pola opcjonalne: `str | None = None`, nie magiczne stringi sentinel.
+- `Field()` dla wartości domyślnych wymagających opisu lub validatora.
+
+### Agenci LLM
+
+- Prompty jako stałe `_SYSTEM`, `_USER` na górze modułu.
+- W promptach jasno określ reguły (np. „nie wymyślaj faktów”) — to logika biznesowa.
+- Zwracaj typowane modele (`TailoredCV`), nie surowe dict z odpowiedzi LLM.
+- Stubuj `get_llm` / `get_json_llm` w testach przez `monkeypatch`, nie wołaj prawdziwego API.
+
+### Testy
+
+- Nazewnictwo: `test_<co>_<warunek>_<oczekiwany_rezultat>`.
+- Jeden temat na test; używaj fixture'ów z `conftest.py`.
+- Testuj zachowanie, nie implementację — mockuj tylko granice systemu.
+- Nie dodawaj testów trywialnych (np. `assert True`, test gettera bez logiki).
+
+## Antywzorce — unikaj
+
+- Logiki biznesowej w handlerach Streamlit (`st.session_state` tylko do UI state).
+- Globalnego mutable state poza `Settings` i cache z jasnym TTL.
+- `print()` do debugowania — użyj `logging` jeśli potrzebne.
+- Commitowania `.env`, `*.sqlite`, `secrets/` lub kluczy API.
+- Zmian w `pyproject.toml` / zależnościach bez wyraźnej potrzeby.
+
+## Checklist przed zakończeniem
+
+- [ ] Kod typowany, zgodny z ruff (line-length 100)
+- [ ] Importy posortowane (isort via ruff)
+- [ ] Brak hardcodowanych sekretów i ścieżek absolutnych
+- [ ] Logika w odpowiedniej warstwie (agent/service/model)
+- [ ] Testy dla nowej logiki biznesowej (jeśli dotyczy)
+- [ ] Minimalny diff — bez nieproszonych refaktorów
