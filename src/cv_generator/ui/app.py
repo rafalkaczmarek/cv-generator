@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import streamlit as st
@@ -34,21 +35,41 @@ from cv_generator.services.linkedin_import import (
     profile_from_linkedin_csv,
     profile_from_linkedin_zip,
 )
-from cv_generator.config import describe_llm_provider
 from cv_generator.services.storage import Storage
 
 st.set_page_config(page_title="CV Generator", page_icon=":briefcase:", layout="wide")
 
+# …/src/cv_generator/ui/app.py → parents[3] is the project root.
+_ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
+
+
+def _llm_provider_label(settings: Any) -> str:
+    if settings.llm_provider == "openai":
+        return f"OpenAI ({settings.openai_model})"
+    if settings.llm_provider == "github":
+        return f"GitHub Models ({settings.github_model})"
+    if settings.llm_provider == "anthropic":
+        return f"Anthropic ({settings.anthropic_model})"
+    return settings.llm_provider
+
 
 def _format_llm_error(exc: Exception) -> str:
+    from cv_generator.config import get_settings
+
+    settings = get_settings()
+    provider = _llm_provider_label(settings)
     message = str(exc)
     if "invalid_api_key" in message or "Incorrect API key" in message:
         return (
-            "Nieprawidłowy klucz API OpenAI. Sprawdź plik `.env` w katalogu projektu:\n\n"
-            "- jeśli używasz **OpenAI**: ustaw `LLM_PROVIDER=openai` i prawdziwy `OPENAI_API_KEY` "
-            "(nie placeholder `sk-...`)\n"
-            "- jeśli używasz **GitHub Models**: ustaw `LLM_PROVIDER=github` i `GITHUB_TOKEN` "
-            "z uprawnieniem `models:read`\n\n"
+            f"Aktywny provider: **{provider}**.\n\n"
+            "Wygląda na to, że zapytanie trafiło do OpenAI z placeholderem `sk-...`. "
+            "Najczęstsze przyczyny:\n"
+            "- w `.env` zostawiono `OPENAI_API_KEY=sk-...` przy `LLM_PROVIDER=github` "
+            "(usuń tę linię lub zostaw pustą)\n"
+            "- terminal/IDE wstrzykuje `OPENAI_API_KEY` do środowiska procesu\n\n"
+            "Sprawdź plik `.env` w katalogu projektu:\n"
+            "- **GitHub Models**: `LLM_PROVIDER=github` i `GITHUB_TOKEN` z `models:read`\n"
+            "- **OpenAI**: `LLM_PROVIDER=openai` i prawdziwy `OPENAI_API_KEY`\n\n"
             f"Szczegóły: {message}"
         )
     if "no_access" in message and "model" in message.lower():
@@ -62,10 +83,23 @@ def _format_llm_error(exc: Exception) -> str:
 
 
 def _render_llm_sidebar() -> None:
+    import os
+
+    from cv_generator.config import get_settings
+
+    settings = get_settings()
     with st.sidebar:
         st.subheader("LLM")
-        st.caption(describe_llm_provider())
-        st.caption("Źródło: plik `.env` w katalogu projektu")
+        st.caption(_llm_provider_label(settings))
+        st.caption(f"Konfiguracja: `{_ENV_FILE}`")
+        env_provider = os.environ.get("LLM_PROVIDER")
+        if env_provider and env_provider != settings.llm_provider:
+            st.warning(
+                f"Środowisko procesu ma `LLM_PROVIDER={env_provider}`, "
+                f"ale używany jest `{settings.llm_provider}` z `.env`."
+            )
+        if settings.llm_provider != "openai" and os.environ.get("OPENAI_API_KEY"):
+            st.warning("Wykryto OPENAI_API_KEY w środowisku procesu — może powodować błędy.")
         st.caption("Po zmianie `.env` odśwież stronę w przeglądarce.")
 
 
@@ -79,36 +113,77 @@ def _ss_get(key: str, default: Any = None) -> Any:
     return st.session_state.get(key, default)
 
 
+def _sync_profile_form_state(profile: Profile | None) -> None:
+    """Ustawia wartości widgetów formularza — przy `key` Streamlit ignoruje `value`."""
+    st.session_state.prof_full_name = profile.full_name if profile else ""
+    st.session_state.prof_headline = profile.headline or "" if profile else ""
+    st.session_state.prof_email = str(profile.email) if profile and profile.email else ""
+    st.session_state.prof_phone = profile.phone or "" if profile else ""
+    st.session_state.prof_location = profile.location or "" if profile else ""
+    st.session_state.prof_linkedin = (
+        str(profile.linkedin_url) if profile and profile.linkedin_url else ""
+    )
+    st.session_state.prof_github = str(profile.github_url) if profile and profile.github_url else ""
+    st.session_state.prof_website = (
+        str(profile.website_url) if profile and profile.website_url else ""
+    )
+    st.session_state.prof_summary = profile.summary or "" if profile else ""
+    st.session_state.prof_skills = ", ".join(profile.skills) if profile else ""
+    st.session_state.prof_languages = ", ".join(profile.languages) if profile else ""
+
+
 def _profile_form_inputs(profile: Profile | None) -> dict[str, Any]:
     col1, col2 = st.columns(2)
     with col1:
-        full_name = st.text_input("Imię i nazwisko", value=profile.full_name if profile else "")
-        headline = st.text_input("Headline", value=profile.headline or "" if profile else "")
-        email = st.text_input("Email", value=str(profile.email) if profile and profile.email else "")
-        phone = st.text_input("Telefon", value=profile.phone or "" if profile else "")
+        full_name = st.text_input(
+            "Imię i nazwisko", value=profile.full_name if profile else "", key="prof_full_name"
+        )
+        headline = st.text_input(
+            "Headline", value=profile.headline or "" if profile else "", key="prof_headline"
+        )
+        email = st.text_input(
+            "Email", value=str(profile.email) if profile and profile.email else "", key="prof_email"
+        )
+        phone = st.text_input(
+            "Telefon", value=profile.phone or "" if profile else "", key="prof_phone"
+        )
     with col2:
-        location = st.text_input("Lokalizacja", value=profile.location or "" if profile else "")
+        location = st.text_input(
+            "Lokalizacja", value=profile.location or "" if profile else "", key="prof_location"
+        )
         linkedin_url = st.text_input(
-            "LinkedIn URL", value=str(profile.linkedin_url) if profile and profile.linkedin_url else ""
+            "LinkedIn URL",
+            value=str(profile.linkedin_url) if profile and profile.linkedin_url else "",
+            key="prof_linkedin",
         )
         github_url = st.text_input(
-            "GitHub URL", value=str(profile.github_url) if profile and profile.github_url else ""
+            "GitHub URL",
+            value=str(profile.github_url) if profile and profile.github_url else "",
+            key="prof_github",
         )
         website_url = st.text_input(
-            "Strona WWW", value=str(profile.website_url) if profile and profile.website_url else ""
+            "Strona WWW",
+            value=str(profile.website_url) if profile and profile.website_url else "",
+            key="prof_website",
         )
 
-    summary = st.text_area("Krótkie podsumowanie", value=profile.summary or "" if profile else "", height=120)
+    summary = st.text_area(
+        "Krótkie podsumowanie",
+        value=profile.summary or "" if profile else "",
+        height=120,
+        key="prof_summary",
+    )
 
     skills_default = ", ".join(profile.skills) if profile else ""
     skills = st.text_area(
-        "Umiejętności (oddzielone przecinkami)", value=skills_default, height=80
+        "Umiejętności (oddzielone przecinkami)", value=skills_default, height=80, key="prof_skills"
     )
     languages_default = ", ".join(profile.languages) if profile else ""
     languages = st.text_area(
         "Języki (oddzielone przecinkami, np. 'Polski - natywny, Angielski - C1')",
         value=languages_default,
         height=60,
+        key="prof_languages",
     )
 
     return {
@@ -316,6 +391,7 @@ def _render_linkedin_import() -> None:
                 st.session_state.profile = profile
                 for k in ("experiences_buffer", "edu_buffer", "cert_buffer"):
                     st.session_state.pop(k, None)
+                _sync_profile_form_state(profile)
                 st.success(
                     f"Zaimportowano dane LinkedIn: {profile.full_name} "
                     f"({len(profile.experiences)} doświadczeń, "
@@ -351,6 +427,7 @@ def _render_profile_tab() -> None:
             st.session_state.profile = loaded
             for k in ("experiences_buffer", "edu_buffer", "cert_buffer"):
                 st.session_state.pop(k, None)
+            _sync_profile_form_state(loaded)
             st.success(f"Wczytano profil: {selected_name}")
             st.rerun()
 
@@ -392,8 +469,8 @@ def _render_profile_tab() -> None:
 
 def _render_job_tab() -> None:
     st.header("Oferta pracy")
-    url = st.text_input("URL oferty (opcjonalnie)")
-    raw_text = st.text_area("Wklejona treść oferty (opcjonalnie)", height=240)
+    url = st.text_input("URL oferty (opcjonalnie)", key="job_url")
+    raw_text = st.text_area("Wklejona treść oferty (opcjonalnie)", height=240, key="job_raw_text")
 
     if st.button("Analizuj ofertę", type="primary"):
         if not url and not raw_text.strip():
@@ -462,8 +539,8 @@ def _render_preview_tab() -> None:
         st.info("Najpierw uruchom generowanie w zakładce 'Generuj'.")
         return
 
-    cv.headline = st.text_input("Headline", value=cv.headline)
-    cv.summary = st.text_area("Podsumowanie", value=cv.summary, height=120)
+    cv.headline = st.text_input("Headline", value=cv.headline, key="prv_headline")
+    cv.summary = st.text_area("Podsumowanie", value=cv.summary, height=120, key="prv_summary")
 
     st.subheader("Doświadczenie (możesz edytować bullety przed eksportem)")
     updated_experiences: list[TailoredExperience] = []
@@ -481,7 +558,9 @@ def _render_preview_tab() -> None:
 
     cv.skills = [
         s.strip()
-        for s in st.text_area("Umiejętności (po przecinku)", value=", ".join(cv.skills)).split(",")
+        for s in st.text_area(
+            "Umiejętności (po przecinku)", value=", ".join(cv.skills), key="prv_skills"
+        ).split(",")
         if s.strip()
     ]
 

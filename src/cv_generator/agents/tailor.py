@@ -12,7 +12,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from cv_generator.graph.state import GapAnalysis
 from cv_generator.models import JobOffer, Profile, TailoredCV, TailoredExperience
-from cv_generator.services.llm import get_llm
+from cv_generator.services.llm import get_json_llm, get_llm
 
 _SYSTEM = (
     "You are an expert resume writer tailoring an existing profile to a specific "
@@ -49,9 +49,7 @@ def tailor_cv(
     feedback: str = "",
     language: str = "pl",
 ) -> TailoredCV:
-    llm = get_llm()
-    if _supports_json_mode():
-        llm = llm.bind(response_format={"type": "json_object"})
+    llm = get_json_llm() if _supports_json_mode() else get_llm()
 
     prompt = ChatPromptTemplate.from_messages([("system", _SYSTEM), ("user", _USER)])
     chain = prompt | llm

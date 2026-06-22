@@ -45,7 +45,7 @@ def fake_llm(monkeypatch: pytest.MonkeyPatch):
     def _factory():
         return llm
 
-    monkeypatch.setattr(job_analyzer, "get_llm", _factory)
+    monkeypatch.setattr(job_analyzer, "get_json_llm", _factory)
     return llm
 
 
@@ -64,6 +64,6 @@ def test_analyze_job_requires_some_input() -> None:
 
 def test_analyze_job_handles_markdown_fenced_json(monkeypatch: pytest.MonkeyPatch) -> None:
     fenced = '```json\n{"title": "Backend", "company": "X", "requirements": []}\n```'
-    monkeypatch.setattr(job_analyzer, "get_llm", lambda: _FakeLLM(fenced))
+    monkeypatch.setattr(job_analyzer, "get_json_llm", lambda: _FakeLLM(fenced))
     offer = job_analyzer.analyze_job(url=None, raw_text="Some job text")
     assert offer.title == "Backend"

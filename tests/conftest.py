@@ -27,11 +27,8 @@ def _isolate_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("APP_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("APP_OUTPUT_DIR", str(tmp_path / "output"))
     monkeypatch.setenv("APP_TEMPLATES_DIR", str(tmp_path / "templates"))
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-
-    import cv_generator.config as cfg
-
-    cfg._settings = None  # type: ignore[attr-defined]
 
 
 @pytest.fixture

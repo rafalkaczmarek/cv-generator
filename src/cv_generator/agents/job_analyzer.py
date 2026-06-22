@@ -6,7 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from cv_generator.models import JobOffer
 from cv_generator.services.job_fetcher import JobFetchError, fetch_job_text
-from cv_generator.services.llm import get_llm
+from cv_generator.services.llm import get_json_llm
 
 _SYSTEM = (
     "You are a recruitment analyst. Given the raw text of a job offer, extract "
@@ -36,7 +36,7 @@ def analyze_job(*, url: str | None, raw_text: str | None) -> JobOffer:
 
     text = raw_text or fetch_job_text(url)  # type: ignore[arg-type]
 
-    llm = get_llm().bind(response_format={"type": "json_object"}) if _supports_json_mode() else get_llm()
+    llm = get_json_llm()
     prompt = ChatPromptTemplate.from_messages([("system", _SYSTEM), ("user", _USER)])
     chain = prompt | llm
 
@@ -54,13 +54,6 @@ def analyze_job(*, url: str | None, raw_text: str | None) -> JobOffer:
         responsibilities=_as_str_list(parsed.get("responsibilities")),
         keywords=_as_str_list(parsed.get("keywords")),
     )
-
-
-def _supports_json_mode() -> bool:
-    """OpenAI and GitHub Models (OpenAI-compatible) expose a JSON response_format flag."""
-    from cv_generator.config import get_settings
-
-    return get_settings().llm_provider in ("openai", "github")
 
 
 def _parse_json_payload(content: object) -> dict:

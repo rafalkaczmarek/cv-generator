@@ -1,9 +1,4 @@
-"""LLM client factory.
-
-Returns a LangChain chat model configured from environment settings. Keeping
-this in one place lets agents stay provider-agnostic and switch between
-OpenAI and Anthropic via the `LLM_PROVIDER` env var.
-"""
+"""LLM client factory."""
 
 from __future__ import annotations
 
@@ -12,11 +7,6 @@ from langchain_core.language_models import BaseChatModel
 from cv_generator.config import get_settings
 
 _PLACEHOLDER_KEYS = frozenset({"sk-...", "sk-your-key-here", "changeme"})
-
-
-def clear_llm_cache() -> None:
-    """No-op kept for settings reload hook; LLM clients are created per call."""
-    return None
 
 
 def _reject_placeholder_key(key: str, *, env_var: str) -> None:
@@ -28,8 +18,11 @@ def _reject_placeholder_key(key: str, *, env_var: str) -> None:
         )
 
 
-def get_llm() -> BaseChatModel:
+def get_llm(*, json_mode: bool = False) -> BaseChatModel:
     settings = get_settings()
+    extra_kwargs: dict = {}
+    if json_mode:
+        extra_kwargs["model_kwargs"] = {"response_format": {"type": "json_object"}}
 
     if settings.llm_provider == "openai":
         if not settings.openai_api_key:
@@ -43,6 +36,7 @@ def get_llm() -> BaseChatModel:
             model=settings.openai_model,
             api_key=settings.openai_api_key,
             temperature=0.2,
+            **extra_kwargs,
         )
 
     if settings.llm_provider == "github":
@@ -52,13 +46,12 @@ def get_llm() -> BaseChatModel:
             )
         from langchain_openai import ChatOpenAI
 
-        # GitHub Models exposes an OpenAI-compatible API, so we reuse ChatOpenAI
-        # with a custom base_url and the GitHub PAT as the API key.
         return ChatOpenAI(
             model=settings.github_model,
             api_key=settings.github_token,
             base_url=settings.github_base_url,
             temperature=0.2,
+            **extra_kwargs,
         )
 
     if settings.llm_provider == "anthropic":
@@ -76,3 +69,10 @@ def get_llm() -> BaseChatModel:
         )
 
     raise RuntimeError(f"Unsupported LLM provider: {settings.llm_provider}")
+
+
+def get_json_llm() -> BaseChatModel:
+    settings = get_settings()
+    if settings.llm_provider in ("openai", "github"):
+        return get_llm(json_mode=True)
+    return get_llm()
