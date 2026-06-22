@@ -98,10 +98,7 @@ except Exception:
 
 ### Testy
 
-- Nazewnictwo: `test_<co>_<warunek>_<oczekiwany_rezultat>`.
-- Jeden temat na test; używaj fixture'ów z `conftest.py`.
-- Testuj zachowanie, nie implementację — mockuj tylko granice systemu.
-- Nie dodawaj testów trywialnych (np. `assert True`, test gettera bez logiki).
+Szczegółowe standardy testów — reguła `@tester` (`tests/**/*.py`).
 
 ## Antywzorce — unikaj
 

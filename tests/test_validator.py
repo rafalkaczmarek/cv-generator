@@ -35,3 +35,13 @@ def test_validator_flags_invented_skills(sample_profile, sample_job, sample_tail
     )
     _, feedback, _ = validate(profile=sample_profile, job=sample_job, cv=bad_cv)
     assert "quantum" in feedback.lower() or "fabricated" in feedback.lower()
+
+
+def test_validator_reports_no_issues_for_fully_covered_job(
+    sample_profile, sample_job, sample_tailored_cv
+) -> None:
+    job = sample_job.model_copy(update={"keywords": ["Python", "FastAPI"], "requirements": ["Python"]})
+    score, feedback, cv = validate(profile=sample_profile, job=job, cv=sample_tailored_cv)
+    assert score >= 80
+    assert "no issues" in feedback.lower() or "looks good" in feedback.lower()
+    assert cv.match_score == score

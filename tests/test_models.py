@@ -15,6 +15,11 @@ def test_profile_normalizes_comma_separated_skills() -> None:
     assert profile.skills == ["python", "fastapi", "docker"]
 
 
+def test_profile_normalizes_none_skills() -> None:
+    profile = Profile(full_name="X", skills=None)
+    assert profile.skills == []
+
+
 def test_experience_normalizes_newline_bullets() -> None:
     exp = Experience(
         company="A",
@@ -23,6 +28,16 @@ def test_experience_normalizes_newline_bullets() -> None:
         bullets="first\n  second \n\nthird",
     )
     assert exp.bullets == ["first", "second", "third"]
+
+
+def test_experience_normalizes_none_bullets() -> None:
+    exp = Experience(
+        company="A",
+        title="Dev",
+        start_date=date(2020, 1, 1),
+        bullets=None,
+    )
+    assert exp.bullets == []
 
 
 def test_profile_sorted_experiences_current_first() -> None:

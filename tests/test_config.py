@@ -12,6 +12,11 @@ def test_dotenv_overrides_process_env_for_llm_provider(
 ) -> None:
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setattr(
+        cfg,
+        "_parse_env_file",
+        lambda: {"LLM_PROVIDER": "github", "OPENAI_API_KEY": "sk-from-dotenv"},
+    )
 
     settings = cfg.get_settings()
 

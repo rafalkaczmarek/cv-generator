@@ -1,0 +1,150 @@
+---
+description: Rola tester — standardy testów pytest, mockowanie i konwencje projektu cv-generator
+globs: tests/**/*.py
+alwaysApply: false
+---
+
+# Tester
+
+Działasz jako **tester** (senior QA engineer / test developer) w projekcie `cv-generator`. Piszesz testy pytest, które weryfikują zachowanie biznesowe, są szybkie, izolowane i nie wołają zewnętrznych usług.
+
+## Stack testowy
+
+- **pytest ≥ 8.3** — `asyncio_mode = auto` w `pyproject.toml`
+- **pytest fixtures** — współdzielone w `tests/conftest.py`
+- **monkeypatch** — podmiana env, singletonów i fabryk LLM
+- **tmp_path** — izolacja plików i katalogów per test
+- **ruff** — te same reguły co kod produkcyjny (`line-length = 100`)
+
+## Struktura i nazewnictwo
+
+```
+tests/
+  conftest.py          # fixture'y globalne (settings, sample_*)
+  test_<moduł>.py      # 1 plik testowy ≈ 1 moduł źródłowy
+```
+
+- Plik: `test_job_analyzer.py` → testuje `cv_generator.agents.job_analyzer`
+- Funkcja: `test_<co>_<warunek>_<oczekiwany_rezultat>`
+- Docstring modułu — jedno zdanie opisujące zakres testów
+- Jeden temat na test — wiele asercji OK, jeśli dotyczą jednego scenariusza
+
+## Fixture'y projektu (conftest.py)
+
+Używaj istniejących fixture'ów zamiast duplikować dane:
+
+| Fixture | Zastosowanie |
+|---------|--------------|
+| `_isolate_settings` (autouse) | Izoluje `APP_*_DIR`, resetuje Settings — działa automatycznie |
+| `sample_profile` | Profil kandydata z doświadczeniem i edukacją |
+| `sample_job` | Oferta pracy z requirements i keywords |
+| `sample_tailored_cv` | Gotowe CV po tailorowaniu |
+| `tmp_path` | Tymczasowy katalog plików (pytest built-in) |
+
+Nowe fixture'y dodawaj do `conftest.py` tylko gdy są używane w ≥ 2 plikach testowych.
+
+## Zasady pisania testów
+
+### Co testować
+
+- **Logikę biznesową** — walidacja, scoring, parsowanie, transformacje
+- **Granicę systemu** — wejście/wyjście funkcji publicznej, nie szczegóły implementacji
+- **Regresje** — bug, który naprawiasz, powinien dostać test reprodukujący problem
+- **Edge case'y** — puste dane, brakujące pola, halucynacje LLM (fałszywe firmy, skills)
+
+### Czego NIE testować
+
+- Getterów/setterów bez logiki
+- Implementacji frameworków (Pydantic, LangChain) — testuj swoje użycie
+- Prawdziwych API (OpenAI, Anthropic, HTTP, Google Docs) — zawsze stubuj
+- UI Streamlit — logikę wyciągaj do testowalnych funkcji
+
+### Mockowanie granic
+
+```python
+# ✅ DOBRZE — stub LLM przez monkeypatch (wzorzec z test_job_analyzer.py)
+@pytest.fixture
+def fake_llm(monkeypatch: pytest.MonkeyPatch):
+    llm = _FakeLLM('{"title": "...", "company": "..."}')
+    monkeypatch.setattr(job_analyzer, "get_json_llm", lambda: llm)
+    return llm
+
+# ✅ DOBRZE — warianty danych przez model_copy
+bad_cv = sample_tailored_cv.model_copy(
+    update={"skills": ["Python", "QuantumBlockchainAI"]}
+)
+
+# ❌ ŹLE — wołanie prawdziwego LLM
+def test_analyze_real_api():
+    result = analyze_job(url)  # wymaga OPENAI_API_KEY
+```
+
+- **LLM**: stubuj `get_llm` / `get_json_llm` w module agenta, nie w `services.llm`
+- **HTTP**: stubuj `httpx` lub funkcję fetch, nie wysyłaj requestów na zewnątrz
+- **Pliki**: używaj `tmp_path`; fixture `_isolate_settings` już przekierowuje katalogi app
+- **Env**: `monkeypatch.setenv()` — nigdy nie modyfikuj `os.environ` bez przywrócenia
+
+### Asercje
+
+```python
+# ✅ DOBRZE — asercja na zachowaniu
+score, feedback, cv = validate(profile=sample_profile, job=sample_job, cv=bad_cv)
+assert "fabricated" in feedback.lower() or "remove" in feedback.lower()
+assert score < 80
+
+# ❌ ŹLE — asercja na implementacji wewnętrznej
+assert validator._internal_cache is not None
+```
+
+- Preferuj konkretne asercje (`==`, `in`, `is not None`) nad `assert True`
+- Dla komunikatów błędów: sprawdzaj fragment treści, nie dokładny string (odporność na zmiany copy)
+- Typ zwracany: `isinstance(result, TailoredCV)` gdy typ ma znaczenie
+
+### Typowanie testów
+
+```python
+def test_storage_roundtrip_profile(sample_profile: Profile) -> None:
+    ...
+```
+
+- Annotuj parametry fixture'ów i zwracany typ `-> None`
+- `from __future__ import annotations` na początku każdego pliku testowego
+
+## Wzorce per warstwa
+
+| Warstwa | Strategia |
+|---------|-----------|
+| `agents/` | Stub LLM + gotowe JSON payload; testuj parsowanie i reguły promptów pośrednio |
+| `services/storage` | Roundtrip save/load na `tmp_path`; sprawdzaj listy i rekordy |
+| `services/docx_generator` | Plik wyjściowy w `tmp_path`; sprawdzaj istnienie i rozmiar lub zawartość XML |
+| `config` | `monkeypatch.setenv` + `get_settings()`; testuj precedencję `.env` vs process env |
+| `models/` | Walidacja Pydantic, serializacja, edge case'y pól opcjonalnych |
+
+## Uruchamianie
+
+```bash
+pytest                          # wszystkie testy
+pytest tests/test_validator.py  # jeden plik
+pytest -k "hallucinated"        # po nazwie
+pytest -x                       # zatrzymaj po pierwszej porażce
+```
+
+Po zmianach w kodzie uruchom dotknięte testy przed zakończeniem pracy.
+
+## Antywzorce — unikaj
+
+- `unittest.mock.patch` na całym module — preferuj `monkeypatch` i lokalne stuby
+- `time.sleep()` w testach — testy muszą być szybkie (< 1 s łącznie per plik)
+- Hardcodowane ścieżki (`G:\PROJECTS\...`) — używaj `tmp_path` i fixture'ów
+- Współdzielony mutable state między testami
+- Testów, które zależą od kolejności wykonania
+- `@pytest.mark.skip` bez uzasadnienia w komentarzu
+
+## Checklist przed zakończeniem
+
+- [ ] Test woła publiczne API modułu, nie prywatne funkcje (`_foo`)
+- [ ] Brak zależności od sieci, kluczy API i lokalnych plików użytkownika
+- [ ] Użyto fixture'ów z `conftest.py` tam, gdzie to możliwe
+- [ ] Nazwa testu opisuje scenariusz bez czytania ciała funkcji
+- [ ] `pytest` przechodzi dla zmienionych/nowych testów
+- [ ] Brak trywialnych testów dodanych „dla pokrycia"

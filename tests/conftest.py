@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from cv_generator.graph.state import GapAnalysis
 from cv_generator.models import (
     Education,
     Experience,
@@ -90,6 +91,16 @@ def sample_job() -> JobOffer:
         nice_to_have=["AWS", "Terraform"],
         responsibilities=["Design backend services"],
         keywords=["Python", "FastAPI", "Kubernetes", "PostgreSQL", "Terraform"],
+    )
+
+
+@pytest.fixture
+def sample_gap() -> GapAnalysis:
+    return GapAnalysis(
+        matched_skills=["Python", "FastAPI", "Kubernetes"],
+        missing_skills=["Terraform"],
+        relevant_experiences=[0],
+        emphasis_notes=["Emphasize matched skills first: Python, FastAPI."],
     )
 
 

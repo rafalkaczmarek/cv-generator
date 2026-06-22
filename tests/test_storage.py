@@ -37,3 +37,10 @@ def test_storage_records_generated_cv(tmp_path, sample_tailored_cv) -> None:
 
     rows = storage.list_generated_cvs()
     assert rows and rows[0]["profile_name"] == "Jan Kowalski"
+
+
+def test_storage_delete_profile(sample_profile) -> None:
+    storage = Storage()
+    name = storage.save_profile(sample_profile)
+    storage.delete_profile(name)
+    assert name not in storage.list_profiles()
