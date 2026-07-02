@@ -228,11 +228,21 @@ def _location_from_address(address: object) -> str | None:
     return ", ".join(parts) if parts else None
 
 
+# Tailwind arbitrary variants (e.g. ``[&>*]:mb-0``) put ``>`` inside quoted attributes —
+# naive ``<[^>]+>`` stops too early and leaks CSS fragments into plain text.
+_TAG_RE = re.compile(r"<(?:[^>\"']|\"[^\"]*\"|'[^']*')*>", re.IGNORECASE)
+
+
 def _html_to_plain(html: str) -> str:
-    text = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(
+        r"<(script|style)(?:[^>\"']|\"[^\"]*\"|'[^']*')*>.*?</\1>",
+        "",
+        html,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
     text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
     text = re.sub(r"</(p|div|h[1-6]|li|span)>", "\n", text, flags=re.IGNORECASE)
-    text = re.sub(r"<[^>]+>", " ", text)
+    text = _TAG_RE.sub(" ", text)
     text = unescape(text)
     text = re.sub(r"[ \t]+", " ", text)
     return re.sub(r"\n{3,}", "\n\n", text).strip()
@@ -450,14 +460,46 @@ def _experiences_from_projects_html(html: str) -> list[Experience]:
     return experiences
 
 
+def _courses_html_slice(html: str) -> str:
+    """HTML or plain text for the Courses section only."""
+    match = re.search(
+        r"(?is)<h2[^>]*>\s*Courses\s*</h2>(.*?)(?=<h2\b|</section>|$)",
+        html,
+    )
+    if match:
+        return match.group(1)
+    return _section_plain_text(
+        html,
+        "Courses",
+        stop_headings=("Projects", "Languages", "View ", "Explore ", "Activity"),
+    )
+
+
 def _skills_from_courses_html(html: str) -> list[str]:
-    section = _section_plain_text(html, "Courses", stop_headings=("Projects", "Languages"))
+    section = _courses_html_slice(html)
     skills: list[str] = []
-    for line in section.splitlines():
+
+    if re.search(r"<h3\b", section, re.IGNORECASE):
+        for match in _H3_BLOCK_RE.finditer(section):
+            line = _clean_project_title(match.group(2))
+            if not line or line == "-" or _is_masked(line):
+                continue
+            if _is_junk_project_entry(line, ""):
+                continue
+            if line.lower() in {"courses", "see project"}:
+                continue
+            if line not in skills:
+                skills.append(line)
+        return skills
+
+    plain = _html_to_plain(section) if "<" in section else section
+    for line in plain.splitlines():
         line = line.strip()
         if not line or line == "-" or _is_masked(line):
             continue
         if line.lower() in {"courses", "see project"}:
+            continue
+        if _is_junk_project_entry(line, ""):
             continue
         if line not in skills:
             skills.append(line)

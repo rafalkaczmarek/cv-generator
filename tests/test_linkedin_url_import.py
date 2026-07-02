@@ -165,7 +165,10 @@ def test_profile_from_linkedin_url_ignores_non_project_h3_sections(mock_fetch: o
     assert profile.experiences[0].title == "Pekao website"
     assert profile.experiences[1].title == "Virtamed cloud"
     assert all("text-[18px]" not in exp.title for exp in profile.experiences)
+    assert all("*]:mb-0" not in exp.title for exp in profile.experiences)
     assert all(exp.title != "Angular" for exp in profile.experiences)
+    assert profile.skills == ["Angular"]
+    assert all("*]:mb-0" not in skill for skill in profile.skills)
 
 
 @patch("cv_generator.services.linkedin_url_import._fetch_profile_html")
