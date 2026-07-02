@@ -4,7 +4,7 @@ Lokalna aplikacja, która na podstawie Twojego profilu i wymagań konkretnej ofe
 
 ## Funkcje
 
-- Formularz profilu z opcjonalnym URL LinkedIn jako referencją (brak scrapingu — zgodne z ToS).
+- Formularz profilu z importem z publicznego URL LinkedIn (dane schema.org ze strony profilu).
 - Import danych z oficjalnego eksportu LinkedIn (archiwum ZIP lub pojedynczy plik CSV).
 - Pobieranie i analiza oferty pracy z URL lub wklejonego tekstu.
 - Pipeline agentów: analiza oferty, gap analysis, dopasowanie treści, walidacja jakości.
@@ -58,7 +58,7 @@ Aplikacja otworzy się w przeglądarce pod `http://localhost:8501`.
 
 ## Workflow
 
-1. **Profil** — wypełnij formularz ręcznie lub zaimportuj dane z eksportu LinkedIn (patrz niżej).
+1. **Profil** — wypełnij formularz ręcznie, zaimportuj z URL LinkedIn lub z eksportu LinkedIn (patrz niżej).
 2. **Oferta** — wklej URL oferty pracy lub jej treść.
 3. **Generuj** — pipeline pobiera, analizuje i przepisuje CV pod ofertę.
 4. **Podgląd** — popraw treść w razie potrzeby.
@@ -72,7 +72,7 @@ cv-generator/
 │   ├── agents/        # węzły LangGraph (job_analyzer, gap_analyzer, tailor, validator)
 │   ├── graph/         # definicja grafu i stanu
 │   ├── models/        # schematy Pydantic
-│   ├── services/      # job_fetcher, docx_generator, storage, linkedin_import, google_docs
+│   ├── services/      # job_fetcher, docx_generator, storage, linkedin_import, linkedin_url_import, google_docs
 │   ├── ui/            # Streamlit
 │   └── cli.py
 ├── templates/         # szablony Word
@@ -84,7 +84,20 @@ cv-generator/
 
 ## Import z LinkedIn
 
-LinkedIn pozwala pobrać kopię Twoich danych jako archiwum CSV — bez scrapingu i zgodnie z ToS.
+### Z publicznego URL profilu
+
+W zakładce **Profil** rozwiń **„Importuj z URL profilu LinkedIn”**, wklej adres
+(`https://www.linkedin.com/in/...`) i kliknij **Pobierz dane z URL**.
+
+Aplikacja odczytuje publiczne dane strukturalne (schema.org JSON-LD) z głównej
+strony profilu i **uzupełnia brakujące pola** formularza — istniejące dane nie
+są nadpisywane. Doświadczenie zawodowe pobierane jest z podstrony projektów
+(`/details/projects/`), ponieważ główny profil często maskuje historię
+zatrudnienia gwiazdkami dla niezalogowanych użytkowników.
+
+### Z oficjalnego eksportu (ZIP/CSV)
+
+LinkedIn pozwala pobrać kopię Twoich danych jako archiwum CSV.
 
 1. Na LinkedIn wejdź w **Ustawienia → Prywatność danych → Pobierz kopię swoich danych**.
 2. Zaznacz dane profilu (lub całość) i pobierz przygotowane archiwum ZIP.

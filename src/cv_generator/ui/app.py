@@ -11,6 +11,7 @@ Tabs:
 from __future__ import annotations
 
 import json
+import uuid
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,11 @@ from cv_generator.services.linkedin_import import (
     LinkedInImportError,
     profile_from_linkedin_csv,
     profile_from_linkedin_zip,
+)
+from cv_generator.services.linkedin_url_import import (
+    LinkedInUrlImportError,
+    merge_profiles,
+    profile_from_linkedin_url,
 )
 from cv_generator.services.storage import Storage
 
@@ -111,6 +117,30 @@ def _storage() -> Storage:
 
 def _ss_get(key: str, default: Any = None) -> Any:
     return st.session_state.get(key, default)
+
+
+def _ensure_entry_id(entry: dict[str, Any]) -> str:
+    entry_id = entry.get("_id")
+    if not entry_id:
+        entry_id = str(uuid.uuid4())
+        entry["_id"] = entry_id
+    return entry_id
+
+
+def _strip_entry_id(entry: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in entry.items() if k != "_id"}
+
+
+def _with_entry_ids(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    for item in items:
+        _ensure_entry_id(item)
+    return items
+
+
+def _delete_buffer_entry(buffer_key: str, entry_id: str) -> None:
+    st.session_state[buffer_key] = [
+        entry for entry in st.session_state[buffer_key] if entry.get("_id") != entry_id
+    ]
 
 
 def _sync_profile_form_state(profile: Profile | None) -> None:
@@ -207,11 +237,12 @@ def _experiences_editor(profile: Profile | None) -> list[Experience]:
         [json.loads(e.model_dump_json()) for e in profile.experiences] if profile else []
     )
     if "experiences_buffer" not in st.session_state:
-        st.session_state.experiences_buffer = current
+        st.session_state.experiences_buffer = _with_entry_ids(current)
 
     if st.button("Dodaj doświadczenie", key="add_exp"):
         st.session_state.experiences_buffer.append(
             {
+                "_id": str(uuid.uuid4()),
                 "company": "",
                 "title": "",
                 "location": "",
@@ -225,29 +256,38 @@ def _experiences_editor(profile: Profile | None) -> list[Experience]:
         )
 
     keep: list[Experience] = []
+    keep_buffer: list[dict[str, Any]] = []
+    active_ids = {e.get("_id") for e in st.session_state.experiences_buffer}
     for idx, exp in enumerate(list(st.session_state.experiences_buffer)):
+        entry_id = _ensure_entry_id(exp)
+        if entry_id not in active_ids:
+            continue
         with st.expander(f"#{idx + 1} {exp.get('title') or 'nowa pozycja'} @ {exp.get('company') or '...'}", expanded=False):
             c1, c2 = st.columns(2)
             with c1:
-                exp["company"] = st.text_input("Firma", value=exp.get("company", ""), key=f"exp_company_{idx}")
-                exp["title"] = st.text_input("Stanowisko", value=exp.get("title", ""), key=f"exp_title_{idx}")
+                exp["company"] = st.text_input(
+                    "Firma", value=exp.get("company", ""), key=f"exp_company_{entry_id}"
+                )
+                exp["title"] = st.text_input(
+                    "Stanowisko", value=exp.get("title", ""), key=f"exp_title_{entry_id}"
+                )
                 exp["location"] = st.text_input(
-                    "Lokalizacja", value=exp.get("location") or "", key=f"exp_loc_{idx}"
+                    "Lokalizacja", value=exp.get("location") or "", key=f"exp_loc_{entry_id}"
                 )
             with c2:
                 start_raw = exp.get("start_date") or str(date.today())
                 end_raw = exp.get("end_date")
                 start_value = date.fromisoformat(start_raw) if isinstance(start_raw, str) else start_raw
                 exp["start_date"] = str(
-                    st.date_input("Data rozpoczęcia", value=start_value, key=f"exp_start_{idx}")
+                    st.date_input("Data rozpoczęcia", value=start_value, key=f"exp_start_{entry_id}")
                 )
                 exp["is_current"] = st.checkbox(
-                    "Obecnie", value=bool(exp.get("is_current")), key=f"exp_curr_{idx}"
+                    "Obecnie", value=bool(exp.get("is_current")), key=f"exp_curr_{entry_id}"
                 )
                 if not exp["is_current"]:
                     end_value = date.fromisoformat(end_raw) if isinstance(end_raw, str) and end_raw else date.today()
                     exp["end_date"] = str(
-                        st.date_input("Data zakończenia", value=end_value, key=f"exp_end_{idx}")
+                        st.date_input("Data zakończenia", value=end_value, key=f"exp_end_{entry_id}")
                     )
                 else:
                     exp["end_date"] = None
@@ -255,13 +295,13 @@ def _experiences_editor(profile: Profile | None) -> list[Experience]:
             exp["summary"] = st.text_area(
                 "Krótki opis roli (opcjonalnie)",
                 value=exp.get("summary") or "",
-                key=f"exp_sum_{idx}",
+                key=f"exp_sum_{entry_id}",
                 height=80,
             )
             bullets_str = st.text_area(
                 "Bullet points (jeden na linię)",
                 value="\n".join(exp.get("bullets") or []),
-                key=f"exp_bullets_{idx}",
+                key=f"exp_bullets_{entry_id}",
                 height=120,
             )
             exp["bullets"] = [b.strip() for b in bullets_str.splitlines() if b.strip()]
@@ -269,19 +309,27 @@ def _experiences_editor(profile: Profile | None) -> list[Experience]:
             techs_str = st.text_input(
                 "Technologie (po przecinku)",
                 value=", ".join(exp.get("technologies") or []),
-                key=f"exp_techs_{idx}",
+                key=f"exp_techs_{entry_id}",
             )
             exp["technologies"] = [t.strip() for t in techs_str.split(",") if t.strip()]
 
-            if st.button("Usuń tę pozycję", key=f"exp_del_{idx}"):
-                continue
+            st.button(
+                "Usuń tę pozycję",
+                key=f"exp_del_{entry_id}",
+                on_click=_delete_buffer_entry,
+                args=("experiences_buffer", entry_id),
+            )
 
             try:
-                keep.append(Experience.model_validate(exp))
+                validated = Experience.model_validate(_strip_entry_id(exp))
+                keep.append(validated)
+                keep_buffer.append(
+                    {**json.loads(validated.model_dump_json()), "_id": entry_id}
+                )
             except ValidationError as ve:
                 st.error(f"Pozycja #{idx + 1} ma błędne dane: {ve}")
 
-    st.session_state.experiences_buffer = [json.loads(e.model_dump_json()) for e in keep]
+    st.session_state.experiences_buffer = keep_buffer
     return keep
 
 
@@ -291,44 +339,62 @@ def _education_editor(profile: Profile | None) -> list[Education]:
         [json.loads(e.model_dump_json()) for e in profile.education] if profile else []
     )
     if "edu_buffer" not in st.session_state:
-        st.session_state.edu_buffer = current
+        st.session_state.edu_buffer = _with_entry_ids(current)
 
     if st.button("Dodaj wykształcenie", key="add_edu"):
         st.session_state.edu_buffer.append(
-            {"institution": "", "degree": "", "field_of_study": "", "start_date": None, "end_date": None}
+            {
+                "_id": str(uuid.uuid4()),
+                "institution": "",
+                "degree": "",
+                "field_of_study": "",
+                "start_date": None,
+                "end_date": None,
+            }
         )
 
     keep: list[Education] = []
+    keep_buffer: list[dict[str, Any]] = []
+    active_ids = {e.get("_id") for e in st.session_state.edu_buffer}
     for idx, edu in enumerate(list(st.session_state.edu_buffer)):
+        entry_id = _ensure_entry_id(edu)
+        if entry_id not in active_ids:
+            continue
         with st.expander(f"#{idx + 1} {edu.get('institution') or 'nowa pozycja'}", expanded=False):
             edu["institution"] = st.text_input(
-                "Uczelnia / szkoła", value=edu.get("institution", ""), key=f"edu_inst_{idx}"
+                "Uczelnia / szkoła", value=edu.get("institution", ""), key=f"edu_inst_{entry_id}"
             )
             c1, c2 = st.columns(2)
             with c1:
                 edu["degree"] = st.text_input(
-                    "Stopień / tytuł", value=edu.get("degree") or "", key=f"edu_deg_{idx}"
+                    "Stopień / tytuł", value=edu.get("degree") or "", key=f"edu_deg_{entry_id}"
                 )
             with c2:
                 edu["field_of_study"] = st.text_input(
-                    "Kierunek", value=edu.get("field_of_study") or "", key=f"edu_field_{idx}"
+                    "Kierunek", value=edu.get("field_of_study") or "", key=f"edu_field_{entry_id}"
                 )
 
             edu["description"] = st.text_area(
                 "Opis (opcjonalnie)",
                 value=edu.get("description") or "",
-                key=f"edu_desc_{idx}",
+                key=f"edu_desc_{entry_id}",
                 height=60,
             )
 
-            if st.button("Usuń tę pozycję", key=f"edu_del_{idx}"):
-                continue
+            st.button(
+                "Usuń tę pozycję",
+                key=f"edu_del_{entry_id}",
+                on_click=_delete_buffer_entry,
+                args=("edu_buffer", entry_id),
+            )
             try:
-                keep.append(Education.model_validate(edu))
+                validated = Education.model_validate(_strip_entry_id(edu))
+                keep.append(validated)
+                keep_buffer.append({**json.loads(validated.model_dump_json()), "_id": entry_id})
             except ValidationError as ve:
                 st.error(f"Wykształcenie #{idx + 1} ma błędne dane: {ve}")
 
-    st.session_state.edu_buffer = [json.loads(e.model_dump_json()) for e in keep]
+    st.session_state.edu_buffer = keep_buffer
     return keep
 
 
@@ -338,29 +404,145 @@ def _certifications_editor(profile: Profile | None) -> list[Certification]:
         [json.loads(c.model_dump_json()) for c in profile.certifications] if profile else []
     )
     if "cert_buffer" not in st.session_state:
-        st.session_state.cert_buffer = current
+        st.session_state.cert_buffer = _with_entry_ids(current)
 
     if st.button("Dodaj certyfikat", key="add_cert"):
-        st.session_state.cert_buffer.append({"name": "", "issuer": "", "issued": None, "url": None})
+        st.session_state.cert_buffer.append(
+            {"_id": str(uuid.uuid4()), "name": "", "issuer": "", "issued": None, "url": None}
+        )
 
     keep: list[Certification] = []
+    keep_buffer: list[dict[str, Any]] = []
+    active_ids = {e.get("_id") for e in st.session_state.cert_buffer}
     for idx, cert in enumerate(list(st.session_state.cert_buffer)):
+        entry_id = _ensure_entry_id(cert)
+        if entry_id not in active_ids:
+            continue
         with st.expander(f"#{idx + 1} {cert.get('name') or 'nowy certyfikat'}", expanded=False):
-            cert["name"] = st.text_input("Nazwa", value=cert.get("name", ""), key=f"cert_name_{idx}")
-            cert["issuer"] = st.text_input(
-                "Wystawca", value=cert.get("issuer") or "", key=f"cert_issuer_{idx}"
+            cert["name"] = st.text_input(
+                "Nazwa", value=cert.get("name", ""), key=f"cert_name_{entry_id}"
             )
-            cert["url"] = st.text_input("Link", value=cert.get("url") or "", key=f"cert_url_{idx}") or None
+            cert["issuer"] = st.text_input(
+                "Wystawca", value=cert.get("issuer") or "", key=f"cert_issuer_{entry_id}"
+            )
+            cert["url"] = (
+                st.text_input("Link", value=cert.get("url") or "", key=f"cert_url_{entry_id}") or None
+            )
 
-            if st.button("Usuń", key=f"cert_del_{idx}"):
-                continue
+            st.button(
+                "Usuń",
+                key=f"cert_del_{entry_id}",
+                on_click=_delete_buffer_entry,
+                args=("cert_buffer", entry_id),
+            )
             try:
-                keep.append(Certification.model_validate(cert))
+                validated = Certification.model_validate(_strip_entry_id(cert))
+                keep.append(validated)
+                keep_buffer.append({**json.loads(validated.model_dump_json()), "_id": entry_id})
             except ValidationError as ve:
                 st.error(f"Certyfikat #{idx + 1} ma błędne dane: {ve}")
 
-    st.session_state.cert_buffer = [json.loads(c.model_dump_json()) for c in keep]
+    st.session_state.cert_buffer = keep_buffer
     return keep
+
+
+def _profile_from_session_state() -> Profile | None:
+    """Best-effort snapshot of the form before an import overwrites widget state."""
+    if "prof_full_name" not in st.session_state:
+        return _ss_get("profile")
+
+    experiences: list[Experience] = []
+    for raw in st.session_state.get("experiences_buffer", []):
+        try:
+            experiences.append(Experience.model_validate(_strip_entry_id(raw)))
+        except ValidationError:
+            continue
+
+    education: list[Education] = []
+    for raw in st.session_state.get("edu_buffer", []):
+        try:
+            education.append(Education.model_validate(_strip_entry_id(raw)))
+        except ValidationError:
+            continue
+
+    certifications: list[Certification] = []
+    for raw in st.session_state.get("cert_buffer", []):
+        try:
+            certifications.append(Certification.model_validate(_strip_entry_id(raw)))
+        except ValidationError:
+            continue
+
+    full_name = st.session_state.get("prof_full_name", "").strip()
+    if not full_name and not experiences and not education:
+        return _ss_get("profile")
+
+    try:
+        return Profile(
+            full_name=full_name or "—",
+            headline=st.session_state.get("prof_headline") or None,
+            summary=st.session_state.get("prof_summary") or None,
+            email=st.session_state.get("prof_email") or None,
+            phone=st.session_state.get("prof_phone") or None,
+            location=st.session_state.get("prof_location") or None,
+            linkedin_url=st.session_state.get("prof_linkedin") or None,
+            github_url=st.session_state.get("prof_github") or None,
+            website_url=st.session_state.get("prof_website") or None,
+            skills=st.session_state.get("prof_skills", ""),
+            languages=st.session_state.get("prof_languages", ""),
+            experiences=experiences,
+            education=education,
+            certifications=certifications,
+        )
+    except ValidationError:
+        return _ss_get("profile")
+
+
+def _apply_imported_profile(
+    profile: Profile,
+    *,
+    source: str,
+    merge: bool = False,
+) -> None:
+    if merge:
+        profile = merge_profiles(_profile_from_session_state(), profile)
+    st.session_state.profile = profile
+    for k in ("experiences_buffer", "edu_buffer", "cert_buffer"):
+        st.session_state.pop(k, None)
+    _sync_profile_form_state(profile)
+    verb = "Uzupełniono" if merge else "Zaimportowano"
+    st.success(
+        f"{verb} dane ({source}): {profile.full_name} "
+        f"({len(profile.experiences)} doświadczeń, "
+        f"{len(profile.education)} wpisów wykształcenia, "
+        f"{len(profile.skills)} umiejętności). "
+        "Sprawdź i uzupełnij pola, a następnie zapisz profil."
+    )
+    st.rerun()
+
+
+def _render_linkedin_url_import() -> None:
+    with st.expander("Importuj z URL profilu LinkedIn", expanded=False):
+        st.caption(
+            "Wklej publiczny adres profilu LinkedIn (`linkedin.com/in/...`). "
+            "Aplikacja uzupełni brakujące pola formularza — istniejące dane "
+            "nie zostaną nadpisane. Doświadczenie pobierane jest z podstrony "
+            "projektów (`/details/projects/`), bo główny profil często maskuje "
+            "historię zatrudnienia gwiazdkami."
+        )
+        url = st.text_input(
+            "URL profilu LinkedIn",
+            placeholder="https://www.linkedin.com/in/twoj-profil/",
+            key="linkedin_url_input",
+        )
+        if url and st.button("Pobierz dane z URL", key="linkedin_url_import_btn"):
+            try:
+                profile = profile_from_linkedin_url(url)
+            except LinkedInUrlImportError as exc:
+                st.error(str(exc))
+            except Exception as exc:  # pragma: no cover - defensive
+                st.error(f"Nie udało się zaimportować danych: {exc}")
+            else:
+                _apply_imported_profile(profile, source="URL LinkedIn", merge=True)
 
 
 def _render_linkedin_import() -> None:
@@ -388,27 +570,17 @@ def _render_linkedin_import() -> None:
             except Exception as exc:  # pragma: no cover - defensive
                 st.error(f"Nie udało się zaimportować danych: {exc}")
             else:
-                st.session_state.profile = profile
-                for k in ("experiences_buffer", "edu_buffer", "cert_buffer"):
-                    st.session_state.pop(k, None)
-                _sync_profile_form_state(profile)
-                st.success(
-                    f"Zaimportowano dane LinkedIn: {profile.full_name} "
-                    f"({len(profile.experiences)} doświadczeń, "
-                    f"{len(profile.education)} wpisów wykształcenia, "
-                    f"{len(profile.skills)} umiejętności). "
-                    "Sprawdź i uzupełnij pola, a następnie zapisz profil."
-                )
-                st.rerun()
+                _apply_imported_profile(profile, source="eksport LinkedIn")
 
 
 def _render_profile_tab() -> None:
     st.header("Profil kandydata")
     st.caption(
-        "URL profilu LinkedIn służy jako referencja w wygenerowanym CV. "
-        "Dane uzupełniasz ręcznie lub importujesz z eksportu LinkedIn."
+        "Dane profilu uzupełniasz ręcznie, importujesz z publicznego URL LinkedIn "
+        "lub z oficjalnego eksportu LinkedIn (ZIP/CSV)."
     )
 
+    _render_linkedin_url_import()
     _render_linkedin_import()
 
     storage = _storage()
