@@ -131,8 +131,18 @@ pip install -e .[google]
 
 ## Testy
 
+Testy jednostkowe (domyślnie bez E2E):
+
 ```bash
 pytest
+```
+
+Testy E2E (Playwright + lokalny serwer Streamlit):
+
+```bash
+pip install -e ".[dev,e2e]"
+playwright install chromium
+pytest -m e2e tests/e2e
 ```
 
 ## Licencja

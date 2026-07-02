@@ -25,6 +25,8 @@ secrets/
 htmlcov/
 .ruff_cache/
 .mypy_cache/
+playwright-report/
+test-results/
 
 .idea/
 .vscode/*

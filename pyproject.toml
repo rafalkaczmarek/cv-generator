@@ -36,6 +36,9 @@ dev = [
     "pytest-cov>=6.0",
     "ruff>=0.6",
 ]
+e2e = [
+    "pytest-playwright>=0.6",
+]
 
 [project.scripts]
 cv-generator = "cv_generator.cli:main"
@@ -57,6 +60,10 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+addopts = "-m 'not e2e'"
+markers = [
+    "e2e: end-to-end browser tests (Playwright + Streamlit server)",
+]
 
 [tool.coverage.run]
 omit = ["src/cv_generator/ui/*"]
