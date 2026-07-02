@@ -60,7 +60,7 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "-m 'not e2e'"
+addopts = "-m 'not e2e' --ignore=tests/e2e"
 markers = [
     "e2e: end-to-end browser tests (Playwright + Streamlit server)",
 ]
