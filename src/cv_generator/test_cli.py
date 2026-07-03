@@ -6,8 +6,6 @@ import subprocess
 import sys
 
 import pytest
-from playwright.sync_api import Error as PlaywrightError
-from playwright.sync_api import sync_playwright
 
 _UNIT_ARGS = ["-m", "not e2e", "--ignore=tests/e2e"]
 _COV_ARGS = ["--cov=cv_generator", "--cov-report=term-missing"]
@@ -20,6 +18,9 @@ def _exit_pytest(args: list[str]) -> None:
 
 
 def _ensure_playwright_chromium() -> None:
+    from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import sync_playwright
+
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
