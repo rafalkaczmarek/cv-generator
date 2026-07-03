@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from playwright.sync_api import Page, expect
+
+from tests.e2e.fixtures_data import POSITIONS_CSV, PROFILE_CSV, build_linkedin_zip
 
 E2E_PROFILE = {
     "full_name": "Jan Kowalski",
@@ -88,3 +92,18 @@ def export_docx(page: Page) -> None:
     page.get_by_role("button", name="Zapisz jako DOCX").click()
     expect(page.get_by_text("Zapisano:")).to_be_visible(timeout=30_000)
     expect(page.get_by_role("button", name="Pobierz plik")).to_be_visible()
+
+
+def import_linkedin_file(page: Page, file_path: Path) -> None:
+    open_tab(page, "Profil")
+    page.locator("summary").filter(has_text="Importuj z eksportu LinkedIn").click()
+    page.locator('[data-testid="stFileUploaderDropzone"] input[type="file"]').set_input_files(
+        str(file_path)
+    )
+    page.get_by_role("button", name="Wczytaj dane z LinkedIn").click()
+
+
+def run_full_generation_flow(page: Page) -> None:
+    set_profile_in_session(page)
+    analyze_pasted_job_offer(page)
+    run_generation_pipeline(page)
