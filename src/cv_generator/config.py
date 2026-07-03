@@ -34,7 +34,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    llm_provider: Literal["openai", "anthropic", "github"] = "github"
+    llm_provider: Literal["openai", "anthropic", "github", "stub"] = "github"
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"
     anthropic_api_key: str | None = None
@@ -78,6 +78,8 @@ def _parse_env_file() -> dict[str, str]:
 
 def _apply_env_file(settings: Settings) -> None:
     """Force LLM fields from `.env` — beats IDE-injected process env."""
+    if os.environ.get("CV_GENERATOR_IGNORE_ENV_FILE") == "1":
+        return
     file_values = _parse_env_file()
     for env_key, field_name in _ENV_FIELD_MAP.items():
         if env_key not in file_values:
@@ -97,6 +99,8 @@ def _scrub_openai_process_env() -> None:
 
 
 def _reload_env_into_process() -> None:
+    if os.environ.get("CV_GENERATOR_IGNORE_ENV_FILE") == "1":
+        return
     if ENV_FILE.exists():
         load_dotenv(ENV_FILE, override=True)
     if _parse_env_file().get("LLM_PROVIDER", "github") != "openai":

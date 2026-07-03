@@ -64,3 +64,12 @@ def test_get_llm_rejects_unsupported_provider(monkeypatch: pytest.MonkeyPatch) -
 
     with pytest.raises(RuntimeError, match="Unsupported LLM provider"):
         llm.get_llm()
+
+
+def test_get_llm_returns_stub_for_e2e(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = SimpleNamespace(llm_provider="stub")
+    monkeypatch.setattr(llm, "get_settings", lambda: settings)
+
+    stub = llm.get_llm()
+    response = stub.invoke("Analyze this job offer")
+    assert "Senior Python Engineer" in response.content

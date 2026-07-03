@@ -21,7 +21,8 @@ secrets/
 *.db
 
 .pytest_cache/
-.coverage
+.coverage*
+e2e_debug/
 htmlcov/
 .ruff_cache/
 .mypy_cache/

@@ -45,6 +45,7 @@ def test_main_launches_streamlit(monkeypatch) -> None:
                 "addopts=",
                 "--cov=cv_generator",
                 "--cov-report=term-missing",
+                "--cov-append",
             ],
         ),
     ],

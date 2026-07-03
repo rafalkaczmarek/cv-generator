@@ -30,6 +30,7 @@ def _isolate_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("APP_TEMPLATES_DIR", str(tmp_path / "templates"))
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.delenv("CV_GENERATOR_IGNORE_ENV_FILE", raising=False)
 
 
 @pytest.fixture

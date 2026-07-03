@@ -76,8 +76,8 @@ def streamlit_url(e2e_workspace: Path) -> Generator[str, None, None]:
             "APP_DATA_DIR": str(e2e_workspace / "data"),
             "APP_OUTPUT_DIR": str(e2e_workspace / "output"),
             "APP_TEMPLATES_DIR": str(e2e_workspace / "templates"),
-            "LLM_PROVIDER": "openai",
-            "OPENAI_API_KEY": "sk-test",
+            "LLM_PROVIDER": "stub",
+            "CV_GENERATOR_IGNORE_ENV_FILE": "1",
             "STREAMLIT_BROWSER_GATHER_USAGE_STATS": "false",
         }
     )
@@ -101,6 +101,7 @@ def streamlit_url(e2e_workspace: Path) -> Generator[str, None, None]:
             "none",
         ],
         env=env,
+        cwd=str(PROJECT_ROOT),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )

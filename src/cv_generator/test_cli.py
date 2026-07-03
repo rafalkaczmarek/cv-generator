@@ -11,6 +11,7 @@ from playwright.sync_api import sync_playwright
 
 _UNIT_ARGS = ["-m", "not e2e", "--ignore=tests/e2e"]
 _COV_ARGS = ["--cov=cv_generator", "--cov-report=term-missing"]
+_E2E_COV_ARGS = [*_COV_ARGS, "--cov-append"]
 _E2E_ARGS = ["tests/e2e", "-m", "e2e", "-v", "-o", "addopts="]
 
 
@@ -48,4 +49,4 @@ def test_e2e() -> None:
 def test_e2e_cov() -> None:
     """Run end-to-end tests with code coverage."""
     _ensure_playwright_chromium()
-    _exit_pytest([*_E2E_ARGS, *_COV_ARGS])
+    _exit_pytest([*_E2E_ARGS, *_E2E_COV_ARGS])

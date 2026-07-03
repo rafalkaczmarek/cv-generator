@@ -70,7 +70,9 @@ markers = [
 ]
 
 [tool.coverage.run]
+source = ["cv_generator"]
 omit = ["src/cv_generator/ui/*"]
+parallel = true
 
 [tool.coverage.report]
 exclude_lines = [

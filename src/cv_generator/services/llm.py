@@ -68,6 +68,11 @@ def get_llm(*, json_mode: bool = False) -> BaseChatModel:
             temperature=0.2,
         )
 
+    if settings.llm_provider == "stub":
+        from cv_generator.services.stub_llm import get_stub_llm
+
+        return get_stub_llm()
+
     raise RuntimeError(f"Unsupported LLM provider: {settings.llm_provider}")
 
 
