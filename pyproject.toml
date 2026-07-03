@@ -42,6 +42,10 @@ e2e = [
 
 [project.scripts]
 cv-generator = "cv_generator.cli:main"
+cv-generator-test = "cv_generator.test_cli:test_unit"
+cv-generator-test-cov = "cv_generator.test_cli:test_unit_cov"
+cv-generator-e2e = "cv_generator.test_cli:test_e2e"
+cv-generator-e2e-cov = "cv_generator.test_cli:test_e2e_cov"
 
 [build-system]
 requires = ["hatchling"]
