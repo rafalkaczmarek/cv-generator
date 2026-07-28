@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Iterator
 
@@ -64,7 +64,7 @@ class Storage:
     def save_profile(self, profile: Profile, name: str | None = None) -> str:
         key = name or profile.full_name
         payload = profile.model_dump_json()
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(UTC).isoformat()
         with self._connect() as conn:
             conn.execute(
                 "INSERT INTO profiles(name, data, updated_at) VALUES(?, ?, ?) "
@@ -92,7 +92,7 @@ class Storage:
     def save_job_offer(self, offer: JobOffer) -> str:
         slug = offer.slug()
         payload = offer.model_dump_json()
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(UTC).isoformat()
         with self._connect() as conn:
             conn.execute(
                 "INSERT INTO job_offers(slug, data, updated_at) VALUES(?, ?, ?) "
@@ -116,7 +116,7 @@ class Storage:
         file_path: Path,
         cv: TailoredCV,
     ) -> int:
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(UTC).isoformat()
         with self._connect() as conn:
             cursor = conn.execute(
                 "INSERT INTO generated_cvs(profile_name, job_slug, file_path, "
