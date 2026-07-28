@@ -11,7 +11,9 @@ from tests.e2e.fixtures_data import POSITIONS_CSV, PROFILE_CSV, build_linkedin_z
 from tests.e2e.helpers import (
     E2E_PROFILE,
     analyze_pasted_job_offer,
+    apply_import_conflict_choice,
     export_docx,
+    fill_partial_profile,
     goto_app,
     import_linkedin_file,
     open_tab,
@@ -86,6 +88,94 @@ def test_linkedin_positions_csv_import_partial_profile(page: Page, streamlit_url
     expect(page.get_by_label("Imię i nazwisko")).to_have_value("—", timeout=15_000)
     expect(page.locator("summary").filter(has_text="Acme Corp")).to_be_visible()
     expect(page.locator("summary").filter(has_text="Beta Sp. z o.o.")).to_be_visible()
+
+
+def test_linkedin_import_keeps_filled_fields_and_appends_experiences(
+    page: Page, streamlit_url: str
+) -> None:
+    """Partial LinkedIn CSV must not wipe already filled scalars."""
+    goto_app(page, streamlit_url)
+    fill_partial_profile(
+        page,
+        full_name="Anna Nowak",
+        headline="Lokalny headline",
+        email="anna@example.com",
+    )
+    import_linkedin_file(page, POSITIONS_CSV)
+
+    expect(page.get_by_label("Imię i nazwisko")).to_have_value("Anna Nowak", timeout=15_000)
+    expect(page.get_by_label("Headline")).to_have_value("Lokalny headline")
+    expect(page.get_by_label("Email")).to_have_value("anna@example.com")
+    expect(page.locator("summary").filter(has_text="Acme Corp")).to_be_visible()
+    expect(page.locator("summary").filter(has_text="Beta Sp. z o.o.")).to_be_visible()
+    expect(page.locator("summary").filter(has_text="Konflikty importu")).to_have_count(0)
+
+
+def test_linkedin_import_fills_empty_fields_and_shows_conflicts(
+    page: Page, streamlit_url: str
+) -> None:
+    goto_app(page, streamlit_url)
+    fill_partial_profile(
+        page,
+        full_name="Anna Nowak",
+        headline="Lokalny headline",
+        email="anna@example.com",
+    )
+    import_linkedin_file(page, PROFILE_CSV)
+
+    expect(page.get_by_label("Imię i nazwisko")).to_have_value("Anna Nowak", timeout=15_000)
+    expect(page.get_by_label("Headline")).to_have_value("Lokalny headline")
+    expect(page.get_by_label("Email")).to_have_value("anna@example.com")
+    expect(page.get_by_label("Krótkie podsumowanie")).to_have_value("Backend od 10 lat")
+    expect(page.get_by_label("Lokalizacja")).to_have_value("Warszawa, Poland")
+    expect(page.locator("summary").filter(has_text="Konflikty importu")).to_be_visible()
+    expect(page.get_by_text("Aktualne w formularzu", exact=True)).to_have_count(2)
+    expect(page.get_by_text("Z (eksport LinkedIn)", exact=True)).to_have_count(2)
+
+
+def test_linkedin_import_conflict_apply_incoming_updates_field(
+    page: Page, streamlit_url: str
+) -> None:
+    goto_app(page, streamlit_url)
+    fill_partial_profile(
+        page,
+        full_name="Jan Kowalski",
+        headline="Lokalny headline",
+    )
+    import_linkedin_file(page, PROFILE_CSV)
+
+    expect(page.locator("summary").filter(has_text="Konflikty importu")).to_be_visible(
+        timeout=15_000
+    )
+    apply_import_conflict_choice(page, field_label="Headline", use_incoming=True)
+
+    expect(page.get_by_label("Headline")).to_have_value("Senior Python Developer", timeout=15_000)
+    expect(page.get_by_label("Imię i nazwisko")).to_have_value("Jan Kowalski")
+    expect(page.locator("summary").filter(has_text="Konflikty importu")).to_have_count(0)
+
+
+def test_linkedin_import_conflict_skip_keeps_current_values(
+    page: Page, streamlit_url: str
+) -> None:
+    goto_app(page, streamlit_url)
+    fill_partial_profile(
+        page,
+        full_name="Anna Nowak",
+        headline="Lokalny headline",
+    )
+    import_linkedin_file(page, PROFILE_CSV)
+
+    expect(page.locator("summary").filter(has_text="Konflikty importu")).to_be_visible(
+        timeout=15_000
+    )
+    page.get_by_role("button", name="Pomiń konflikty (zostaw aktualne)").click()
+
+    expect(page.locator("summary").filter(has_text="Konflikty importu")).to_have_count(
+        0, timeout=15_000
+    )
+    expect(page.get_by_label("Imię i nazwisko")).to_have_value("Anna Nowak")
+    expect(page.get_by_label("Headline")).to_have_value("Lokalny headline")
+    expect(page.get_by_label("Krótkie podsumowanie")).to_have_value("Backend od 10 lat")
 
 
 def test_preview_edit_persists_before_export(page: Page, streamlit_url: str) -> None:

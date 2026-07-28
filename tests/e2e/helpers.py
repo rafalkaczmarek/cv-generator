@@ -6,8 +6,6 @@ from pathlib import Path
 
 from playwright.sync_api import Page, expect
 
-from tests.e2e.fixtures_data import POSITIONS_CSV, PROFILE_CSV, build_linkedin_zip
-
 E2E_PROFILE = {
     "full_name": "Jan Kowalski",
     "headline": "Senior Python Developer",
@@ -67,9 +65,9 @@ def analyze_pasted_job_offer(page: Page) -> None:
     open_tab(page, "Oferta")
     page.get_by_label("Wklejona treść oferty (opcjonalnie)").fill(E2E_JOB_TEXT)
     page.get_by_role("button", name="Analizuj ofertę").click()
-    expect(page.get_by_text("Oferta przeanalizowana: Senior Python Engineer @ GammaTech")).to_be_visible(
-        timeout=30_000
-    )
+    expect(
+        page.get_by_text("Oferta przeanalizowana: Senior Python Engineer @ GammaTech")
+    ).to_be_visible(timeout=30_000)
     expect(page.get_by_role("heading", name="Wykryte wymagania")).to_be_visible()
 
 
@@ -101,6 +99,46 @@ def import_linkedin_file(page: Page, file_path: Path) -> None:
         str(file_path)
     )
     page.get_by_role("button", name="Wczytaj dane z LinkedIn").click()
+
+
+def fill_partial_profile(
+    page: Page,
+    *,
+    full_name: str,
+    headline: str,
+    email: str = "jan@example.com",
+) -> None:
+    """Fill only basic scalar fields (no experience) before a LinkedIn merge import."""
+    open_tab(page, "Profil")
+    page.get_by_label("Imię i nazwisko").fill(full_name)
+    page.get_by_label("Headline").fill(headline)
+    page.get_by_label("Email").fill(email)
+
+
+def apply_import_conflict_choice(
+    page: Page,
+    *,
+    field_label: str,
+    use_incoming: bool,
+    source: str = "eksport LinkedIn",
+) -> None:
+    """Pick current/incoming for one conflict field and apply all choices."""
+    summary = page.locator("summary").filter(has_text="Konflikty importu")
+    expect(summary).to_be_visible(timeout=15_000)
+    details = summary.locator("xpath=ancestor::details[1]")
+    if details.get_attribute("open") is None:
+        summary.click()
+
+    choice_label = (
+        f"Użyj z ({source}) — {field_label}"
+        if use_incoming
+        else f"Zachowaj aktualne — {field_label}"
+    )
+    page.get_by_text(choice_label, exact=True).click()
+    page.get_by_role("button", name="Zastosuj wybrane wartości").click()
+    expect(page.locator("summary").filter(has_text="Konflikty importu")).to_have_count(
+        0, timeout=15_000
+    )
 
 
 def run_full_generation_flow(page: Page) -> None:

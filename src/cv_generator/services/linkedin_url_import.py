@@ -19,7 +19,8 @@ from urllib.parse import urlparse
 import httpx
 
 from cv_generator.config import get_settings
-from cv_generator.models import Certification, Education, Experience, Profile
+from cv_generator.models import Education, Experience, Profile
+from cv_generator.services.profile_merge import merge_profiles
 
 __all__ = [
     "LinkedInUrlImportError",
@@ -626,82 +627,6 @@ def _profile_from_person(
         education=_education_from_person(person),
         skills=skills,
         languages=_languages_from_person(person),
-    )
-
-
-def _experience_key(exp: Experience) -> tuple[str, str, date]:
-    return (exp.company.lower().strip(), exp.title.lower().strip(), exp.start_date)
-
-
-def _education_key(edu: Education) -> tuple[str, date | None]:
-    return (edu.institution.lower().strip(), edu.start_date)
-
-
-def _certification_key(cert: Certification) -> tuple[str, str | None]:
-    issuer = cert.issuer or ""
-    return (cert.name.lower().strip(), issuer.lower().strip())
-
-
-def _pick_scalar(current: str | None, incoming: str | None) -> str | None:
-    if _is_placeholder(current):
-        return incoming or current
-    return current
-
-
-def merge_profiles(existing: Profile | None, incoming: Profile) -> Profile:
-    """Fill gaps in *existing* with data from *incoming*; append new list items."""
-    if existing is None:
-        return incoming
-
-    merged_experiences = list(existing.experiences)
-    seen_exp = {_experience_key(e) for e in merged_experiences}
-    for exp in incoming.experiences:
-        key = _experience_key(exp)
-        if key not in seen_exp:
-            merged_experiences.append(exp)
-            seen_exp.add(key)
-
-    merged_education = list(existing.education)
-    seen_edu = {_education_key(e) for e in merged_education}
-    for edu in incoming.education:
-        key = _education_key(edu)
-        if key not in seen_edu:
-            merged_education.append(edu)
-            seen_edu.add(key)
-
-    merged_skills = list(existing.skills)
-    for skill in incoming.skills:
-        if skill not in merged_skills:
-            merged_skills.append(skill)
-
-    merged_languages = list(existing.languages)
-    for language in incoming.languages:
-        if language not in merged_languages:
-            merged_languages.append(language)
-
-    merged_certs = list(existing.certifications)
-    seen_cert = {_certification_key(c) for c in merged_certs}
-    for cert in incoming.certifications:
-        key = _certification_key(cert)
-        if key not in seen_cert:
-            merged_certs.append(cert)
-            seen_cert.add(key)
-
-    return Profile(
-        full_name=_pick_scalar(existing.full_name, incoming.full_name) or existing.full_name,
-        headline=_pick_scalar(existing.headline, incoming.headline),
-        summary=_pick_scalar(existing.summary, incoming.summary),
-        email=existing.email or incoming.email,
-        phone=_pick_scalar(existing.phone, incoming.phone),
-        location=_pick_scalar(existing.location, incoming.location),
-        linkedin_url=existing.linkedin_url or incoming.linkedin_url,
-        github_url=existing.github_url or incoming.github_url,
-        website_url=existing.website_url or incoming.website_url,
-        experiences=merged_experiences,
-        education=merged_education,
-        skills=merged_skills,
-        languages=merged_languages,
-        certifications=merged_certs,
     )
 
 
