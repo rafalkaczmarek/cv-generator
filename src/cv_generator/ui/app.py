@@ -163,55 +163,29 @@ def _sync_profile_form_state(profile: Profile | None) -> None:
 
 
 def _profile_form_inputs(profile: Profile | None) -> dict[str, Any]:
+    # Wartości widgetów z `key` muszą pochodzić wyłącznie z session_state
+    # (patrz `_sync_profile_form_state`) — nie podawać jednocześnie `value=`.
+    if "prof_full_name" not in st.session_state:
+        _sync_profile_form_state(profile)
+
     col1, col2 = st.columns(2)
     with col1:
-        full_name = st.text_input(
-            "Imię i nazwisko", value=profile.full_name if profile else "", key="prof_full_name"
-        )
-        headline = st.text_input(
-            "Headline", value=profile.headline or "" if profile else "", key="prof_headline"
-        )
-        email = st.text_input(
-            "Email", value=str(profile.email) if profile and profile.email else "", key="prof_email"
-        )
-        phone = st.text_input(
-            "Telefon", value=profile.phone or "" if profile else "", key="prof_phone"
-        )
+        full_name = st.text_input("Imię i nazwisko", key="prof_full_name")
+        headline = st.text_input("Headline", key="prof_headline")
+        email = st.text_input("Email", key="prof_email")
+        phone = st.text_input("Telefon", key="prof_phone")
     with col2:
-        location = st.text_input(
-            "Lokalizacja", value=profile.location or "" if profile else "", key="prof_location"
-        )
-        linkedin_url = st.text_input(
-            "LinkedIn URL",
-            value=str(profile.linkedin_url) if profile and profile.linkedin_url else "",
-            key="prof_linkedin",
-        )
-        github_url = st.text_input(
-            "GitHub URL",
-            value=str(profile.github_url) if profile and profile.github_url else "",
-            key="prof_github",
-        )
-        website_url = st.text_input(
-            "Strona WWW",
-            value=str(profile.website_url) if profile and profile.website_url else "",
-            key="prof_website",
-        )
+        location = st.text_input("Lokalizacja", key="prof_location")
+        linkedin_url = st.text_input("LinkedIn URL", key="prof_linkedin")
+        github_url = st.text_input("GitHub URL", key="prof_github")
+        website_url = st.text_input("Strona WWW", key="prof_website")
 
-    summary = st.text_area(
-        "Krótkie podsumowanie",
-        value=profile.summary or "" if profile else "",
-        height=120,
-        key="prof_summary",
-    )
-
-    skills_default = ", ".join(profile.skills) if profile else ""
+    summary = st.text_area("Krótkie podsumowanie", height=120, key="prof_summary")
     skills = st.text_area(
-        "Umiejętności (oddzielone przecinkami)", value=skills_default, height=80, key="prof_skills"
+        "Umiejętności (oddzielone przecinkami)", height=80, key="prof_skills"
     )
-    languages_default = ", ".join(profile.languages) if profile else ""
     languages = st.text_area(
         "Języki (oddzielone przecinkami, np. 'Polski - natywny, Angielski - C1')",
-        value=languages_default,
         height=60,
         key="prof_languages",
     )
