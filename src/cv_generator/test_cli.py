@@ -7,14 +7,16 @@ import sys
 
 import pytest
 
-_UNIT_ARGS = ["-m", "not e2e", "--ignore=tests/e2e"]
+# Clear ini addopts (`-o addopts=`) so CLI args are not merged with pyproject.toml.
+_UNIT_ARGS = ["-o", "addopts=", "-m", "not e2e", "--ignore=tests/e2e"]
 _COV_ARGS = ["--cov=cv_generator", "--cov-report=term-missing"]
 _E2E_COV_ARGS = [*_COV_ARGS, "--cov-append"]
 _E2E_ARGS = ["tests/e2e", "-m", "e2e", "-v", "-o", "addopts="]
 
 
 def _exit_pytest(args: list[str]) -> None:
-    raise SystemExit(pytest.main(args))
+    # Copy so callers can safely reuse module-level arg lists.
+    raise SystemExit(pytest.main(list(args)))
 
 
 def _ensure_playwright_chromium() -> None:

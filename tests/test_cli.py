@@ -8,6 +8,10 @@ import pytest
 
 from cv_generator import cli, test_cli
 
+_UNIT_ARGS = ["-o", "addopts=", "-m", "not e2e", "--ignore=tests/e2e"]
+_COV_ARGS = ["--cov=cv_generator", "--cov-report=term-missing"]
+_E2E_ARGS = ["tests/e2e", "-m", "e2e", "-v", "-o", "addopts="]
+
 
 def test_main_launches_streamlit(monkeypatch) -> None:
     captured: list[list[str]] = []
@@ -28,25 +32,12 @@ def test_main_launches_streamlit(monkeypatch) -> None:
 @pytest.mark.parametrize(
     ("entrypoint", "expected_args"),
     [
-        (test_cli.test_unit, ["-m", "not e2e", "--ignore=tests/e2e"]),
-        (
-            test_cli.test_unit_cov,
-            ["-m", "not e2e", "--ignore=tests/e2e", "--cov=cv_generator", "--cov-report=term-missing"],
-        ),
-        (test_cli.test_e2e, ["tests/e2e", "-m", "e2e", "-v", "-o", "addopts="]),
+        (test_cli.test_unit, _UNIT_ARGS),
+        (test_cli.test_unit_cov, [*_UNIT_ARGS, *_COV_ARGS]),
+        (test_cli.test_e2e, _E2E_ARGS),
         (
             test_cli.test_e2e_cov,
-            [
-                "tests/e2e",
-                "-m",
-                "e2e",
-                "-v",
-                "-o",
-                "addopts=",
-                "--cov=cv_generator",
-                "--cov-report=term-missing",
-                "--cov-append",
-            ],
+            [*_E2E_ARGS, *_COV_ARGS, "--cov-append"],
         ),
     ],
 )

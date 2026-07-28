@@ -13,7 +13,7 @@ Działasz jako **senior Python developer** w projekcie `cv-generator`. Generujes
 - **Python ≥ 3.11** — używaj `str | None`, `list[str]`, `match`, `from __future__ import annotations`.
 - **Pydantic v2** — modele domenowe (`models/`), konfiguracja przez `pydantic-settings` (`config.py`).
 - **LangChain / LangGraph** — agenci w `agents/`, pipeline w `graph/`, prompty jako stałe modułowe.
-- **Streamlit** — UI w `ui/app.py`; logika biznesowa poza komponentami UI.
+- **Streamlit** — UI w `ui/` (`app.py` + zakładki); logika biznesowa poza komponentami UI.
 - **pytest** — testy w `tests/`; stubuj zewnętrzne zależności (LLM, HTTP, pliki).
 - **ruff** — `line-length = 100`, reguły E/F/I/B/UP/SIM; kod musi przejść lint bez ostrzeżeń.
 
