@@ -103,12 +103,8 @@ def select_cv_template(page: Page, option_substring: str) -> None:
     box = _template_combobox(page)
     expect(box).to_be_visible()
     box.click()
-    page.get_by_text(option_substring).last.click()
-    expect(_template_combobox(page)).to_have_attribute(
-        "aria-label",
-        re.compile(re.escape(option_substring)),
-        timeout=15_000,
-    )
+    page.get_by_role("option", name=re.compile(re.escape(option_substring))).click()
+    expect(box).to_have_value(re.compile(re.escape(option_substring)), timeout=15_000)
 
 
 def export_docx(page: Page, *, template_option: str | None = None) -> None:
