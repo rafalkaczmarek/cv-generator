@@ -16,7 +16,7 @@ from cv_generator.agents.validator import validate
 from cv_generator.graph import pipeline
 from cv_generator.graph.pipeline import generate_cv
 from cv_generator.models import Profile, TailoredCV
-from cv_generator.services.docx_generator import render_cv
+from cv_generator.services.docx_generator import ensure_builtin_templates, list_templates, render_cv
 from cv_generator.services.linkedin_import import (
     LinkedInImportError,
     profile_from_linkedin_csv,
@@ -120,9 +120,16 @@ def test_stub_llm_export_roundtrip(
     storage.save_profile(e2e_profile)
     storage.save_job_offer(offer)
 
-    path = render_cv(cv, filename="cv_e2e.docx")
+    ensure_builtin_templates(templates)
+    available = {t.id for t in list_templates(templates)}
+    assert "cv_compact.docx" in available
+
+    path = render_cv(cv, template_id="cv_compact.docx", filename="cv_e2e.docx")
     assert path.exists()
     assert path.stat().st_size > 0
+
+    modern = render_cv(cv, template_id="cv_modern.docx", filename="cv_e2e_modern.docx")
+    assert modern.exists() and modern.stat().st_size > 0
 
     record_id = storage.record_generated_cv(
         profile_name=e2e_profile.full_name,

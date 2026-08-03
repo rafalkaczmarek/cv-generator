@@ -14,6 +14,7 @@ from tests.e2e.helpers import (
     goto_app,
     open_tab,
     reload_saved_profile,
+    run_full_generation_flow,
     run_generation_pipeline,
     save_profile_to_storage,
     set_profile_in_session,
@@ -69,3 +70,24 @@ def test_full_cv_generation_and_export(
     export_panel = page.get_by_role("tabpanel", name="Eksport")
     expect(export_panel.get_by_text("Historia wygenerowanych CV")).to_be_visible()
     expect(export_panel.get_by_text("score 100").first).to_be_visible()
+
+
+def test_export_with_selected_template(
+    page: Page, streamlit_url: str, e2e_workspace: Path
+) -> None:
+    goto_app(page, streamlit_url)
+    run_full_generation_flow(page)
+
+    output_dir = e2e_workspace / "output"
+    before_mtime = {p.name: p.stat().st_mtime for p in output_dir.glob("*.docx")}
+    export_docx(page, template_option="Kompaktowy")
+
+    after = list(output_dir.glob("*.docx"))
+    assert after, "Expected DOCX in output dir after export"
+    updated = [
+        p
+        for p in after
+        if p.name not in before_mtime or p.stat().st_mtime > before_mtime[p.name]
+    ]
+    assert updated, "Expected an updated DOCX after exporting with the compact template"
+    assert updated[0].stat().st_size > 0

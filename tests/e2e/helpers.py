@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from playwright.sync_api import Page, expect
@@ -35,15 +36,21 @@ def open_tab(page: Page, tab_name: str) -> None:
 def fill_minimal_profile(page: Page) -> None:
     """Fill profile form and add one experience entry."""
     open_tab(page, "Profil")
+    profile = page.get_by_role("tabpanel", name="Profil")
 
-    page.get_by_label("Imię i nazwisko").fill(E2E_PROFILE["full_name"])
-    page.get_by_label("Headline").fill(E2E_PROFILE["headline"])
-    page.get_by_label("Email").fill(E2E_PROFILE["email"])
-    page.get_by_label("Umiejętności (oddzielone przecinkami)").fill(E2E_PROFILE["skills"])
+    profile.get_by_label("Imię i nazwisko").fill(E2E_PROFILE["full_name"])
+    profile.get_by_label("Headline").fill(E2E_PROFILE["headline"])
+    profile.get_by_label("Email").fill(E2E_PROFILE["email"])
+    profile.get_by_label("Umiejętności (oddzielone przecinkami)").fill(E2E_PROFILE["skills"])
 
-    page.get_by_role("button", name="Dodaj doświadczenie").click()
-    page.locator("summary").filter(has_text="#1").click()
-    experience = page.locator('[data-testid="stExpanderDetails"]').last
+    profile.get_by_role("button", name="Dodaj doświadczenie").click()
+    summary = profile.locator("summary").filter(has_text="#1")
+    expect(summary).to_be_visible(timeout=15_000)
+    details = summary.locator("xpath=ancestor::details[1]")
+    if details.get_attribute("open") is None:
+        summary.click()
+    expect(details).to_have_js_property("open", True, timeout=5_000)
+    experience = details.locator('[data-testid="stExpanderDetails"]')
     experience.get_by_label("Firma", exact=True).fill(E2E_PROFILE["experience_company"])
     experience.get_by_label("Stanowisko", exact=True).fill(E2E_PROFILE["experience_title"])
 
@@ -86,8 +93,29 @@ def reload_saved_profile(page: Page, profile_name: str) -> None:
     expect(page.get_by_label("Imię i nazwisko")).to_have_value(profile_name, timeout=15_000)
 
 
-def export_docx(page: Page) -> None:
+def _template_combobox(page: Page):
+    return page.get_by_role("combobox", name="Szablon CV")
+
+
+def select_cv_template(page: Page, option_substring: str) -> None:
+    """Pick a template in the Eksport tab by visible option text (e.g. 'Nowoczesny')."""
     open_tab(page, "Eksport")
+    box = _template_combobox(page)
+    expect(box).to_be_visible()
+    box.click()
+    page.get_by_text(option_substring).last.click()
+    expect(_template_combobox(page)).to_have_attribute(
+        "aria-label",
+        re.compile(re.escape(option_substring)),
+        timeout=15_000,
+    )
+
+
+def export_docx(page: Page, *, template_option: str | None = None) -> None:
+    open_tab(page, "Eksport")
+    expect(_template_combobox(page)).to_be_visible()
+    if template_option is not None:
+        select_cv_template(page, template_option)
     page.get_by_role("button", name="Zapisz jako DOCX").click()
     expect(page.get_by_text("Zapisano:")).to_be_visible(timeout=30_000)
     expect(page.get_by_role("button", name="Pobierz plik")).to_be_visible()

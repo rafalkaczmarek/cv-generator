@@ -18,7 +18,12 @@ from playwright.sync_api import Page
 from cv_generator.config import PROJECT_ROOT
 
 APP_PATH = PROJECT_ROOT / "src" / "cv_generator" / "ui" / "app.py"
-DEFAULT_TEMPLATE = PROJECT_ROOT / "templates" / "cv_template.docx"
+TEMPLATES_DIR = PROJECT_ROOT / "templates"
+BUILTIN_TEMPLATE_NAMES = (
+    "cv_template.docx",
+    "cv_modern.docx",
+    "cv_compact.docx",
+)
 
 
 def _find_free_port() -> int:
@@ -61,7 +66,13 @@ def e2e_workspace(tmp_path_factory: pytest.TempPathFactory) -> Path:
     base = tmp_path_factory.mktemp("e2e")
     for name in ("data", "output", "templates"):
         (base / name).mkdir()
-    shutil.copy2(DEFAULT_TEMPLATE, base / "templates" / "cv_template.docx")
+    for name in BUILTIN_TEMPLATE_NAMES:
+        src = TEMPLATES_DIR / name
+        if not src.exists():
+            from cv_generator.services.docx_generator import ensure_builtin_templates
+
+            ensure_builtin_templates(TEMPLATES_DIR)
+        shutil.copy2(TEMPLATES_DIR / name, base / "templates" / name)
     return base
 
 

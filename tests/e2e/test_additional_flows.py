@@ -53,7 +53,9 @@ def test_preview_tab_requires_generated_cv(page: Page, streamlit_url: str) -> No
 def test_export_tab_shows_empty_history(page: Page, streamlit_url: str) -> None:
     goto_app(page, streamlit_url)
     open_tab(page, "Eksport")
+    expect(page.get_by_role("combobox", name="Szablon CV")).to_be_visible()
     expect(page.get_by_text("Brak wpisów.")).to_be_visible()
+    expect(page.get_by_text("Google Docs (opcjonalne)")).to_be_visible()
 
 
 def test_profile_invalid_email_shows_error(page: Page, streamlit_url: str) -> None:

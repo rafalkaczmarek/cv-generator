@@ -111,17 +111,24 @@ Rozpoznawane pliki: `Profile.csv`, `Positions.csv`, `Projects.csv`, `Education.c
 Brakujące pliki lub kolumny są pomijane, a daty w formatach LinkedIn (`Mar 2019`, `2019`)
 są parsowane automatycznie. Projekty z `Projects.csv` trafiają do listy doświadczeń.
 
-## Szablon CV
+## Szablony CV
 
-Domyślny szablon znajduje się w `templates/cv_template.docx`. Używa składni Jinja2 (przez `docxtpl`):
+W zakładce **Eksport** wybierasz szablon Word. Wbudowane warianty (tworzone automatycznie w `templates/`):
 
-- `{{ profile.full_name }}`
-- `{{ profile.headline }}`
-- `{%tr for exp in experiences %}` ... `{%tr endfor %}` (pętla wierszami)
+| Plik | Opis |
+|------|------|
+| `cv_template.docx` | Klasyczny — ciemnoniebieskie nagłówki |
+| `cv_modern.docx` | Nowoczesny — wyśrodkowany nagłówek, akcent teal |
+| `cv_compact.docx` | Kompaktowy — mniejsza czcionka na jedną stronę |
 
-Możesz podmienić szablon na swój własny — wystarczy zachować nazwy zmiennych.
+Własny szablon: wrzuć plik `.docx` do `templates/` — pojawi się na liście. Składnia Jinja2 (przez `docxtpl`), kontekst `cv`:
 
-## Google Docs (faza 2, opcjonalne)
+- `{{ cv.full_name }}`, `{{ cv.headline }}`, `{{ cv.summary }}`
+- `{%p for exp in cv.experiences %}` ... `{%p endfor %}`
+- `{{ cv.skills | join(', ') }}`, `{{ cv.languages | join(', ') }}`
+- `{%p for line in cv.education_lines %}` / `{%p for cert in cv.certifications %}`
+
+## Google Docs (opcjonalne)
 
 ```bash
 pip install -e .[google]
@@ -129,8 +136,8 @@ pip install -e .[google]
 
 1. Utwórz projekt w Google Cloud Console, włącz Drive API i Docs API.
 2. Pobierz OAuth credentials → zapisz jako `secrets/google_credentials.json`.
-3. Skopiuj szablon CV do swojego Drive, ustaw `GOOGLE_DRIVE_TEMPLATE_ID` w `.env`.
-
+3. Skopiuj szablon CV do Drive (placeholdery płaskie: `{{full_name}}`, `{{experiences}}`, …), ustaw `GOOGLE_DRIVE_TEMPLATE_ID` w `.env`.
+4. W zakładce Eksport → „Google Docs” → eksportuj.
 ## Testy
 
 Testy jednostkowe (domyślnie bez E2E):

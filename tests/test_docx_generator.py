@@ -1,8 +1,18 @@
+"""Tests for DOCX template listing and CV rendering."""
+
 from __future__ import annotations
 
 from pathlib import Path
 
-from cv_generator.services.docx_generator import ensure_default_template, render_cv
+import pytest
+
+from cv_generator.services.docx_generator import (
+    ensure_builtin_templates,
+    ensure_default_template,
+    list_templates,
+    render_cv,
+    resolve_template,
+)
 
 
 def test_default_template_is_created(tmp_path: Path) -> None:
@@ -10,6 +20,41 @@ def test_default_template_is_created(tmp_path: Path) -> None:
     assert template.exists()
     assert template.suffix == ".docx"
     assert template.stat().st_size > 0
+
+
+def test_builtin_templates_are_created(tmp_path: Path) -> None:
+    paths = ensure_builtin_templates(template_dir=tmp_path)
+    assert len(paths) == 3
+    assert {p.name for p in paths} == {
+        "cv_template.docx",
+        "cv_modern.docx",
+        "cv_compact.docx",
+    }
+    assert all(p.exists() and p.stat().st_size > 0 for p in paths)
+
+
+def test_list_templates_includes_builtins_and_custom(tmp_path: Path) -> None:
+    custom = tmp_path / "moj_szablon.docx"
+    custom.write_bytes(ensure_default_template(template_dir=tmp_path).read_bytes())
+
+    templates = list_templates(template_dir=tmp_path)
+    ids = [t.id for t in templates]
+    assert ids[:3] == ["cv_template.docx", "cv_modern.docx", "cv_compact.docx"]
+    assert "moj_szablon.docx" in ids
+    custom_info = next(t for t in templates if t.id == "moj_szablon.docx")
+    assert custom_info.label == "Moj Szablon"
+
+
+def test_resolve_template_by_id(tmp_path: Path) -> None:
+    ensure_builtin_templates(template_dir=tmp_path)
+    path = resolve_template("cv_modern.docx", template_dir=tmp_path)
+    assert path.name == "cv_modern.docx"
+
+
+def test_resolve_template_unknown_raises(tmp_path: Path) -> None:
+    ensure_builtin_templates(template_dir=tmp_path)
+    with pytest.raises(FileNotFoundError, match="missing.docx"):
+        resolve_template("missing.docx", template_dir=tmp_path)
 
 
 def test_render_cv_produces_docx(sample_tailored_cv, tmp_path: Path) -> None:
@@ -22,6 +67,18 @@ def test_render_cv_produces_docx(sample_tailored_cv, tmp_path: Path) -> None:
     )
     assert output_path.exists()
     assert output_path.name == "result.docx"
+    assert output_path.stat().st_size > 0
+
+
+def test_render_cv_with_template_id(sample_tailored_cv, tmp_path: Path) -> None:
+    ensure_builtin_templates(template_dir=tmp_path / "templates")
+    output_path = render_cv(
+        sample_tailored_cv,
+        template_id="cv_compact.docx",
+        output_dir=tmp_path / "out",
+        filename="compact.docx",
+    )
+    assert output_path.exists()
     assert output_path.stat().st_size > 0
 
 
