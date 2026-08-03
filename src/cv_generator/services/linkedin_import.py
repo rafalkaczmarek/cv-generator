@@ -9,6 +9,7 @@ Supported CSVs (matched case-insensitively, with or without a folder prefix):
 
 - ``Profile.csv``          → name, headline, summary, location, websites
 - ``Positions.csv``        → experiences
+- ``Projects.csv``         → experiences (projects as Experience entries)
 - ``Education.csv``        → education
 - ``Skills.csv``           → skills
 - ``Languages.csv``        → languages
@@ -223,18 +224,55 @@ def _primary_email(rows: Sequence[Mapping[str, str]]) -> str | None:
     return fallback
 
 
+def _experiences_from_projects(rows: Sequence[Mapping[str, str]]) -> list[Experience]:
+    """Map LinkedIn Projects.csv rows onto Experience entries.
+
+    The Profile model has no separate projects list; projects are stored as
+    experiences with company ``Projekt`` (same convention as URL import).
+    """
+    out: list[Experience] = []
+    for row in rows:
+        title = _get(row, "Title", "Project Name", "Name")
+        if not title:
+            continue
+        start = _parse_date(_get(row, "Start Date", "Started On"))
+        finished = _get(row, "End Date", "Finished On")
+        end = _parse_date(finished)
+        summary = _get(row, "Description") or None
+        url = _get(row, "Url", "URL")
+        if url.lower().startswith("http"):
+            summary = f"{summary}\n{url}".strip() if summary else url
+        out.append(
+            Experience(
+                company="Projekt",
+                title=title,
+                start_date=start or date(1900, 1, 1),
+                end_date=end,
+                is_current=bool(start) and not finished,
+                summary=summary,
+            )
+        )
+    return out
+
+
 # --- file/section dispatch --------------------------------------------------
 
 # Maps a normalized base filename to the profile section it feeds.
 _SECTIONS = {
     "profile": "profile",
     "positions": "positions",
+    "projects": "projects",
     "education": "education",
     "skills": "skills",
     "languages": "languages",
     "certifications": "certifications",
     "email addresses": "email",
 }
+
+_KNOWN_CSV_FILES = (
+    "Profile.csv, Positions.csv, Projects.csv, Education.csv, Skills.csv, "
+    "Languages.csv, Certifications.csv, Email Addresses.csv"
+)
 
 
 def _section_for(filename: str) -> str | None:
@@ -253,8 +291,8 @@ def _read_rows(text: str) -> list[dict[str, str]]:
 def profile_from_csv_rows(sections: Mapping[str, Sequence[Mapping[str, str]]]) -> Profile:
     """Build a Profile from already-parsed CSV rows, keyed by section name.
 
-    Section keys: ``profile``, ``positions``, ``education``, ``skills``,
-    ``languages``, ``certifications``, ``email``.
+    Section keys: ``profile``, ``positions``, ``projects``, ``education``,
+    ``skills``, ``languages``, ``certifications``, ``email``.
     """
     fields: dict[str, object] = {}
     fields.update(_profile_fields(sections.get("profile", [])))
@@ -267,9 +305,12 @@ def profile_from_csv_rows(sections: Mapping[str, Sequence[Mapping[str, str]]]) -
         # full_name is required by the model; leave a placeholder for the user.
         fields["full_name"] = "—"
 
+    experiences = _experiences(sections.get("positions", []))
+    experiences.extend(_experiences_from_projects(sections.get("projects", [])))
+
     return Profile(
         **fields,  # type: ignore[arg-type]
-        experiences=_experiences(sections.get("positions", [])),
+        experiences=experiences,
         education=_education(sections.get("education", [])),
         skills=_skills(sections.get("skills", [])),
         languages=_languages(sections.get("languages", [])),
@@ -306,7 +347,7 @@ def profile_from_linkedin_zip(source: bytes | str | Path) -> Profile:
     if not sections:
         raise LinkedInImportError(
             "W archiwum nie znaleziono rozpoznawalnych plików CSV "
-            "(Profile.csv, Positions.csv, ...)."
+            f"({_KNOWN_CSV_FILES})."
         )
     return profile_from_csv_rows(sections)
 
@@ -321,8 +362,7 @@ def profile_from_linkedin_csv(filename: str, data: bytes | str) -> Profile:
     if section is None:
         raise LinkedInImportError(
             f"Nierozpoznany plik CSV: {filename}. Oczekiwano jednego z: "
-            "Profile.csv, Positions.csv, Education.csv, Skills.csv, "
-            "Languages.csv, Certifications.csv, Email Addresses.csv."
+            f"{_KNOWN_CSV_FILES}."
         )
     text = data.decode("utf-8-sig") if isinstance(data, bytes) else data
     return profile_from_csv_rows({section: _read_rows(text)})

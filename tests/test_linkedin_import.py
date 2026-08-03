@@ -46,12 +46,19 @@ EMAIL_CSV = (
     "jan@example.com,Yes,Yes,2023\r\n"
 )
 
+PROJECTS_CSV = (
+    "Title,Start Date,End Date,Description,Url\r\n"
+    "CV Generator,Jan 2024,,Generator CV z LinkedIn,https://github.com/jan/cv\r\n"
+    "Legacy Portal,Mar 2019,Dec 2020,Migracja monolitu,\r\n"
+)
+
 
 def _build_zip() -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as zf:
         zf.writestr("Profile.csv", PROFILE_CSV)
         zf.writestr("Positions.csv", POSITIONS_CSV)
+        zf.writestr("Projects.csv", PROJECTS_CSV)
         zf.writestr("Education.csv", EDUCATION_CSV)
         zf.writestr("Skills.csv", SKILLS_CSV)
         zf.writestr("Languages.csv", LANGUAGES_CSV)
@@ -70,7 +77,7 @@ def test_zip_import_maps_all_sections() -> None:
 
     assert profile.email == "jan@example.com"  # primary wins over the older one
 
-    assert len(profile.experiences) == 2
+    assert len(profile.experiences) == 4  # 2 positions + 2 projects
     current = profile.experiences[0]
     assert current.company == "Acme Corp"
     assert current.start_date == date(2021, 1, 1)
@@ -79,6 +86,11 @@ def test_zip_import_maps_all_sections() -> None:
     past = profile.experiences[1]
     assert past.is_current is False
     assert past.end_date == date(2020, 12, 1)
+    project = profile.experiences[2]
+    assert project.company == "Projekt"
+    assert project.title == "CV Generator"
+    assert project.is_current is True
+    assert "https://github.com/jan/cv" in (project.summary or "")
 
     assert profile.education[0].institution == "Politechnika Warszawska"
     assert profile.education[0].start_date == date(2013, 1, 1)
@@ -106,6 +118,20 @@ def test_single_csv_import() -> None:
     profile = profile_from_linkedin_csv("Positions.csv", POSITIONS_CSV)
     assert profile.full_name == "—"  # placeholder, user fills it in
     assert len(profile.experiences) == 2
+
+
+def test_projects_csv_import() -> None:
+    profile = profile_from_linkedin_csv("Projects.csv", PROJECTS_CSV)
+    assert len(profile.experiences) == 2
+    first, second = profile.experiences
+    assert first.title == "CV Generator"
+    assert first.company == "Projekt"
+    assert first.start_date == date(2024, 1, 1)
+    assert first.is_current is True
+    assert first.summary == "Generator CV z LinkedIn\nhttps://github.com/jan/cv"
+    assert second.title == "Legacy Portal"
+    assert second.end_date == date(2020, 12, 1)
+    assert second.is_current is False
 
 
 def test_directory_import(tmp_path) -> None:

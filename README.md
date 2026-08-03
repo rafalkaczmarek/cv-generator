@@ -105,9 +105,10 @@ LinkedIn pozwala pobrać kopię Twoich danych jako archiwum CSV.
    (możesz też wgrać pojedynczy plik, np. `Positions.csv`).
 4. Formularz wypełni się automatycznie — przejrzyj, uzupełnij brakujące pola i zapisz profil.
 
-Rozpoznawane pliki: `Profile.csv`, `Positions.csv`, `Education.csv`, `Skills.csv`,
-`Languages.csv`, `Certifications.csv`, `Email Addresses.csv`. Brakujące pliki lub kolumny
-są pomijane, a daty w formatach LinkedIn (`Mar 2019`, `2019`) są parsowane automatycznie.
+Rozpoznawane pliki: `Profile.csv`, `Positions.csv`, `Projects.csv`, `Education.csv`,
+`Skills.csv`, `Languages.csv`, `Certifications.csv`, `Email Addresses.csv`.
+Brakujące pliki lub kolumny są pomijane, a daty w formatach LinkedIn (`Mar 2019`, `2019`)
+są parsowane automatycznie. Projekty z `Projects.csv` trafiają do listy doświadczeń.
 
 ## Szablon CV
 

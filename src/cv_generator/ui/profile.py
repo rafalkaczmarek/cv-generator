@@ -308,7 +308,7 @@ def render_linkedin_import() -> None:
         st.caption(
             "Wejdź na LinkedIn → Ustawienia → Prywatność danych → "
             "*Pobierz kopię swoich danych* i wgraj otrzymane archiwum ZIP "
-            "(albo pojedynczy plik CSV, np. `Positions.csv`). "
+            "(albo pojedynczy plik CSV, np. `Positions.csv` / `Projects.csv`). "
             "Brakujące pola zostaną uzupełnione; przy konfliktach wybierzesz "
             "wartość ręcznie."
         )
