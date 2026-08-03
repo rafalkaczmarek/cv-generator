@@ -53,10 +53,10 @@ def get_llm(*, json_mode: bool = False) -> BaseChatModel:
         gemini_kwargs: dict = {}
         if json_mode:
             gemini_kwargs["response_mime_type"] = "application/json"
+        # Omit temperature: gemini-3.6-flash ignores custom sampling and warns if set.
         return ChatGoogleGenerativeAI(
             model=settings.gemini_model,
             google_api_key=settings.gemini_api_key,
-            temperature=0.2,
             **gemini_kwargs,
         )
 
