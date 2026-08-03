@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from playwright.sync_api import Page, expect
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 E2E_PROFILE = {
     "full_name": "Jan Kowalski",
@@ -92,13 +93,34 @@ def export_docx(page: Page) -> None:
     expect(page.get_by_role("button", name="Pobierz plik")).to_be_visible()
 
 
+def _open_details(page: Page, summary_text: str) -> None:
+    """Ensure a Streamlit expander ``<details>`` is open (survives widget reruns)."""
+    summary = page.locator("summary").filter(has_text=summary_text)
+    expect(summary).to_be_visible(timeout=15_000)
+    details = summary.locator("xpath=ancestor::details[1]")
+    if details.get_attribute("open") is None:
+        summary.click()
+    expect(details).to_have_js_property("open", True, timeout=5_000)
+
+
 def import_linkedin_file(page: Page, file_path: Path) -> None:
     open_tab(page, "Profil")
-    page.locator("summary").filter(has_text="Importuj z eksportu LinkedIn").click()
+    _open_details(page, "Importuj z eksportu LinkedIn")
     page.locator('[data-testid="stFileUploaderDropzone"] input[type="file"]').set_input_files(
         str(file_path)
     )
-    page.get_by_role("button", name="Wczytaj dane z LinkedIn").click()
+    # File upload triggers a Streamlit rerun; the expander may collapse briefly.
+    button = page.get_by_role("button", name="Wczytaj dane z LinkedIn")
+    last_error: Exception | None = None
+    for _ in range(4):
+        _open_details(page, "Importuj z eksportu LinkedIn")
+        try:
+            button.click(timeout=5_000)
+            return
+        except PlaywrightTimeoutError as exc:
+            last_error = exc
+    assert last_error is not None
+    raise last_error
 
 
 def fill_partial_profile(
