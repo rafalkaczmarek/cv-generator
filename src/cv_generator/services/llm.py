@@ -41,21 +41,6 @@ def get_llm(*, json_mode: bool = False) -> BaseChatModel:
             **extra_kwargs,
         )
 
-    if settings.llm_provider == "github":
-        if not settings.github_token:
-            raise RuntimeError(
-                "GITHUB_TOKEN nie jest ustawiony. Wygeneruj PAT z uprawnieniem models:read."
-            )
-        from langchain_openai import ChatOpenAI
-
-        return ChatOpenAI(
-            model=settings.github_model,
-            api_key=settings.github_token,
-            base_url=settings.github_base_url,
-            temperature=0.2,
-            **extra_kwargs,
-        )
-
     if settings.llm_provider == "gemini":
         if not settings.gemini_api_key:
             raise RuntimeError(
@@ -99,7 +84,7 @@ def get_llm(*, json_mode: bool = False) -> BaseChatModel:
 
 def get_json_llm() -> BaseChatModel:
     settings = get_settings()
-    if settings.llm_provider in ("openai", "github", "gemini"):
+    if settings.llm_provider in ("openai", "gemini"):
         return get_llm(json_mode=True)
     return get_llm()
 

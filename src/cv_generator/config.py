@@ -22,9 +22,6 @@ _ENV_FIELD_MAP: dict[str, str] = {
     "ANTHROPIC_MODEL": "anthropic_model",
     "GEMINI_API_KEY": "gemini_api_key",
     "GEMINI_MODEL": "gemini_model",
-    "GITHUB_TOKEN": "github_token",
-    "GITHUB_MODEL": "github_model",
-    "GITHUB_BASE_URL": "github_base_url",
 }
 
 
@@ -36,16 +33,13 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    llm_provider: Literal["openai", "anthropic", "gemini", "github", "stub"] = "gemini"
+    llm_provider: Literal["openai", "anthropic", "gemini", "stub"] = "gemini"
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-3-5-sonnet-latest"
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.6-flash"
-    github_token: str | None = None
-    github_model: str = "openai/gpt-4.1-mini"
-    github_base_url: str = "https://models.github.ai/inference"
 
     app_data_dir: Path = Field(default=Path("./data"))
     app_output_dir: Path = Field(default=Path("./output"))
@@ -89,7 +83,7 @@ def _apply_env_file(settings: Settings) -> None:
         if env_key not in file_values:
             continue
         raw = file_values[env_key]
-        if not raw and (field_name.endswith("_api_key") or field_name == "github_token"):
+        if not raw and field_name.endswith("_api_key"):
             setattr(settings, field_name, None)
         else:
             setattr(settings, field_name, raw)

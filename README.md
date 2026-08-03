@@ -47,8 +47,7 @@ GEMINI_MODEL=gemini-3.6-flash
 
 Klucz wygenerujesz w [Google AI Studio](https://aistudio.google.com/apikey)
 (wymagane konto Google). Alternatywnie ustaw `LLM_PROVIDER=openai` lub
-`LLM_PROVIDER=anthropic` i wypełnij odpowiedni klucz API. Provider `github`
-(GitHub Models) nadal jest w kodzie, ale usługa została wycofana 30.07.2026.
+`LLM_PROVIDER=anthropic` i wypełnij odpowiedni klucz API.
 
 ## Uruchomienie
 

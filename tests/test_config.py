@@ -15,12 +15,12 @@ def test_dotenv_overrides_process_env_for_llm_provider(
     monkeypatch.setattr(
         cfg,
         "_parse_env_file",
-        lambda: {"LLM_PROVIDER": "github", "OPENAI_API_KEY": "sk-from-dotenv"},
+        lambda: {"LLM_PROVIDER": "gemini", "OPENAI_API_KEY": "sk-from-dotenv"},
     )
 
     settings = cfg.get_settings()
 
-    assert settings.llm_provider == "github"
+    assert settings.llm_provider == "gemini"
     assert settings.openai_api_key is None
 
 

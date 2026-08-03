@@ -146,4 +146,4 @@ def _as_str_list(value: object) -> list[str]:
 def _supports_json_mode() -> bool:
     from cv_generator.config import get_settings
 
-    return get_settings().llm_provider in ("openai", "github", "gemini")
+    return get_settings().llm_provider in ("openai", "gemini")

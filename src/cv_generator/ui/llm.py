@@ -17,8 +17,6 @@ def llm_provider_label(settings: Any) -> str:
         return f"OpenAI ({settings.openai_model})"
     if settings.llm_provider == "gemini":
         return f"Gemini ({settings.gemini_model})"
-    if settings.llm_provider == "github":
-        return f"GitHub Models ({settings.github_model})"
     if settings.llm_provider == "anthropic":
         return f"Anthropic ({settings.anthropic_model})"
     return settings.llm_provider
@@ -49,20 +47,6 @@ def format_llm_error(exc: Exception) -> str:
             f"Aktywny provider: **{provider}**.\n\n"
             "Klucz `GEMINI_API_KEY` jest nieprawidłowy lub wygasł. "
             "Wygeneruj nowy na https://aistudio.google.com/apikey i wpisz go do `.env`.\n\n"
-            f"Szczegóły: {message}"
-        )
-    if "github_models_retirement" in message or "410" in message:
-        return (
-            "GitHub Models zostało wycofane 30 lipca 2026 i endpoint nie działa. "
-            "Ustaw w `.env` `LLM_PROVIDER=gemini` i `GEMINI_API_KEY` "
-            "(https://aistudio.google.com/apikey).\n\n"
-            f"Szczegóły: {message}"
-        )
-    if "no_access" in message and "model" in message.lower():
-        return (
-            "Brak dostępu do modelu na GitHub Models. Token musi mieć uprawnienie **models:read** "
-            "(fine-grained PAT → Permissions → Models → Read). "
-            "Uwaga: GitHub Models jest wycofane od 30.07.2026 — rozważ migrację na Gemini.\n\n"
             f"Szczegóły: {message}"
         )
     return message
