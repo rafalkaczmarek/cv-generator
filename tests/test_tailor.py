@@ -18,8 +18,7 @@ def fake_tailor_llm(monkeypatch: pytest.MonkeyPatch) -> FakeLLM:
         '"date_range": "01/2021 - obecnie", "bullets": ["Built FastAPI services."]}], '
         '"skills": ["Python", "FastAPI", "Kubernetes"], '
         '"languages": ["Polski - natywny"], '
-        '"education_lines": ["mgr inż. - Informatyka - Politechnika Warszawska"], '
-        '"certifications": []}'
+        '"education_lines": ["mgr inż. - Informatyka - Politechnika Warszawska"]}'
     )
     llm = FakeLLM(payload)
     monkeypatch.setattr(tailor, "get_json_llm", lambda: llm)

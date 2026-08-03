@@ -35,11 +35,6 @@ SKILLS_CSV = "Name\r\nPython\r\nFastAPI\r\nPython\r\nDocker\r\n"
 
 LANGUAGES_CSV = "Name,Proficiency\r\nPolish,Native or bilingual\r\nEnglish,Full professional\r\n"
 
-CERTIFICATIONS_CSV = (
-    "Name,Url,Authority,Started On,License Number\r\n"
-    "AWS Certified,https://aws.example/cert,Amazon,Mar 2022,ABC123\r\n"
-)
-
 EMAIL_CSV = (
     "Email Address,Confirmed,Primary,Updated On\r\n"
     "old@example.com,Yes,No,2020\r\n"
@@ -64,7 +59,6 @@ def _build_zip() -> bytes:
         zf.writestr("Education.csv", EDUCATION_CSV)
         zf.writestr("Skills.csv", SKILLS_CSV)
         zf.writestr("Languages.csv", LANGUAGES_CSV)
-        zf.writestr("Certifications.csv", CERTIFICATIONS_CSV)
         zf.writestr("Email Addresses.csv", EMAIL_CSV)
     return buffer.getvalue()
 
@@ -102,8 +96,6 @@ def test_zip_import_maps_all_sections() -> None:
         "Polish - Native or bilingual",
         "English - Full professional",
     ]
-    assert profile.certifications[0].name == "AWS Certified"
-    assert profile.certifications[0].issued == date(2022, 3, 1)
 
 
 def test_zip_import_handles_folder_prefixed_names() -> None:

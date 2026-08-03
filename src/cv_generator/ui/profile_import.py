@@ -5,7 +5,7 @@ from __future__ import annotations
 import streamlit as st
 from pydantic import ValidationError
 
-from cv_generator.models import Certification, Education, Experience, Profile
+from cv_generator.models import Education, Experience, Profile
 from cv_generator.services.linkedin_import import (
     LinkedInImportError,
     profile_from_linkedin_csv,
@@ -63,13 +63,6 @@ def profile_from_session_state() -> Profile | None:
         except ValidationError:
             continue
 
-    certifications: list[Certification] = []
-    for raw in st.session_state.get("cert_buffer", []):
-        try:
-            certifications.append(Certification.model_validate(strip_entry_id(raw)))
-        except ValidationError:
-            continue
-
     full_name = st.session_state.get("prof_full_name", "").strip()
     if not full_name and not experiences and not education:
         return ss_get("profile")
@@ -89,7 +82,6 @@ def profile_from_session_state() -> Profile | None:
             languages=st.session_state.get("prof_languages", ""),
             experiences=experiences,
             education=education,
-            certifications=certifications,
         )
     except ValidationError:
         return ss_get("profile")
@@ -97,7 +89,7 @@ def profile_from_session_state() -> Profile | None:
 
 def set_profile_in_session(profile: Profile) -> None:
     st.session_state.profile = profile
-    for k in ("experiences_buffer", "edu_buffer", "cert_buffer"):
+    for k in ("experiences_buffer", "edu_buffer"):
         st.session_state.pop(k, None)
     sync_profile_form_state(profile)
 

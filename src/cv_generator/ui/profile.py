@@ -9,7 +9,6 @@ from pydantic import ValidationError
 
 from cv_generator.models import Profile
 from cv_generator.ui.profile_editors import (
-    certifications_editor,
     education_editor,
     experiences_editor,
 )
@@ -97,7 +96,6 @@ def render_profile_tab() -> None:
     fields = profile_form_inputs(profile_state)
     experiences = experiences_editor(profile_state)
     education = education_editor(profile_state)
-    certifications = certifications_editor(profile_state)
 
     c1, c2 = st.columns([1, 1])
     with c1:
@@ -107,7 +105,6 @@ def render_profile_tab() -> None:
                     **fields,
                     experiences=experiences,
                     education=education,
-                    certifications=certifications,
                 )
             except ValidationError as ve:
                 st.error(f"Profil ma błędy: {ve}")
@@ -122,7 +119,6 @@ def render_profile_tab() -> None:
                     **fields,
                     experiences=experiences,
                     education=education,
-                    certifications=certifications,
                 )
                 st.success("Profil ustawiony.")
             except ValidationError as ve:

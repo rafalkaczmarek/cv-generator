@@ -339,20 +339,6 @@ def _add_cv_body(
     )
     doc.add_paragraph("{{ cv.languages | join(', ') }}")
 
-    _add_section_title(
-        doc,
-        "Certyfikaty",
-        accent=accent,
-        size=section_size,
-        uppercase=section_uppercase,
-        tight=tight,
-    )
-    doc.add_paragraph("{%p for cert in cv.certifications %}")
-    cert = doc.add_paragraph("{{ cert }}", style="List Bullet")
-    if tight:
-        cert.paragraph_format.space_after = Pt(0)
-    doc.add_paragraph("{%p endfor %}")
-
 
 def _add_section_title(
     doc: Document,

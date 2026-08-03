@@ -41,13 +41,6 @@ class Education(BaseModel):
     description: str | None = None
 
 
-class Certification(BaseModel):
-    name: str
-    issuer: str | None = None
-    issued: date | None = None
-    url: HttpUrl | None = None
-
-
 class Profile(BaseModel):
     full_name: str
     headline: str | None = None
@@ -64,7 +57,6 @@ class Profile(BaseModel):
     education: list[Education] = Field(default_factory=list)
     skills: list[str] = Field(default_factory=list)
     languages: list[str] = Field(default_factory=list)
-    certifications: list[Certification] = Field(default_factory=list)
 
     @field_validator("skills", "languages", mode="before")
     @classmethod

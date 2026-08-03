@@ -39,7 +39,6 @@ _TAILORED_CV_JSON = json.dumps(
         "skills": ["Python", "FastAPI", "PostgreSQL", "Docker"],
         "languages": ["Polski - natywny"],
         "education_lines": ["mgr inż. - Informatyka - Politechnika Warszawska"],
-        "certifications": [],
     },
     ensure_ascii=False,
 )

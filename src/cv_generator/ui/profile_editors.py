@@ -1,4 +1,4 @@
-"""List editors for profile experiences, education, and certifications."""
+"""List editors for profile experiences and education."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import Any
 import streamlit as st
 from pydantic import ValidationError
 
-from cv_generator.models import Certification, Education, Experience, Profile
+from cv_generator.models import Education, Experience, Profile
 from cv_generator.ui.state import (
     delete_buffer_entry,
     ensure_entry_id,
@@ -198,53 +198,4 @@ def education_editor(profile: Profile | None) -> list[Education]:
                 st.error(f"Wykształcenie #{idx + 1} ma błędne dane: {ve}")
 
     st.session_state.edu_buffer = keep_buffer
-    return keep
-
-
-def certifications_editor(profile: Profile | None) -> list[Certification]:
-    st.subheader("Certyfikaty")
-    current: list[dict[str, Any]] = (
-        [json.loads(c.model_dump_json()) for c in profile.certifications] if profile else []
-    )
-    if "cert_buffer" not in st.session_state:
-        st.session_state.cert_buffer = with_entry_ids(current)
-
-    if st.button("Dodaj certyfikat", key="add_cert"):
-        st.session_state.cert_buffer.append(
-            {"_id": str(uuid.uuid4()), "name": "", "issuer": "", "issued": None, "url": None}
-        )
-
-    keep: list[Certification] = []
-    keep_buffer: list[dict[str, Any]] = []
-    active_ids = {e.get("_id") for e in st.session_state.cert_buffer}
-    for idx, cert in enumerate(list(st.session_state.cert_buffer)):
-        entry_id = ensure_entry_id(cert)
-        if entry_id not in active_ids:
-            continue
-        with st.expander(f"#{idx + 1} {cert.get('name') or 'nowy certyfikat'}", expanded=False):
-            cert["name"] = st.text_input(
-                "Nazwa", value=cert.get("name", ""), key=f"cert_name_{entry_id}"
-            )
-            cert["issuer"] = st.text_input(
-                "Wystawca", value=cert.get("issuer") or "", key=f"cert_issuer_{entry_id}"
-            )
-            cert["url"] = (
-                st.text_input("Link", value=cert.get("url") or "", key=f"cert_url_{entry_id}")
-                or None
-            )
-
-            st.button(
-                "Usuń",
-                key=f"cert_del_{entry_id}",
-                on_click=delete_buffer_entry,
-                args=("cert_buffer", entry_id),
-            )
-            try:
-                validated = Certification.model_validate(strip_entry_id(cert))
-                keep.append(validated)
-                keep_buffer.append({**json.loads(validated.model_dump_json()), "_id": entry_id})
-            except ValidationError as ve:
-                st.error(f"Certyfikat #{idx + 1} ma błędne dane: {ve}")
-
-    st.session_state.cert_buffer = keep_buffer
     return keep

@@ -8,7 +8,7 @@ from difflib import SequenceMatcher
 from html import escape
 from typing import Any, Literal
 
-from cv_generator.models import Certification, Education, Experience, Profile
+from cv_generator.models import Education, Experience, Profile
 
 __all__ = [
     "Choice",
@@ -73,11 +73,6 @@ def _education_key(edu: Education) -> tuple[str, date | None]:
     return (edu.institution.lower().strip(), edu.start_date)
 
 
-def _certification_key(cert: Certification) -> tuple[str, str | None]:
-    issuer = cert.issuer or ""
-    return (cert.name.lower().strip(), issuer.lower().strip())
-
-
 def _merge_list_fields(
     existing: Profile,
     incoming: Profile,
@@ -108,20 +103,11 @@ def _merge_list_fields(
         if language not in merged_languages:
             merged_languages.append(language)
 
-    merged_certs = list(existing.certifications)
-    seen_cert = {_certification_key(c) for c in merged_certs}
-    for cert in incoming.certifications:
-        key = _certification_key(cert)
-        if key not in seen_cert:
-            merged_certs.append(cert)
-            seen_cert.add(key)
-
     return {
         "experiences": merged_experiences,
         "education": merged_education,
         "skills": merged_skills,
         "languages": merged_languages,
-        "certifications": merged_certs,
     }
 
 

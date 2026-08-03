@@ -107,7 +107,7 @@ LinkedIn pozwala pobrać kopię Twoich danych jako archiwum CSV.
 4. Formularz wypełni się automatycznie — przejrzyj, uzupełnij brakujące pola i zapisz profil.
 
 Rozpoznawane pliki: `Profile.csv`, `Positions.csv`, `Projects.csv`, `Education.csv`,
-`Skills.csv`, `Languages.csv`, `Certifications.csv`, `Email Addresses.csv`.
+`Skills.csv`, `Languages.csv`, `Email Addresses.csv`.
 Brakujące pliki lub kolumny są pomijane, a daty w formatach LinkedIn (`Mar 2019`, `2019`)
 są parsowane automatycznie. Projekty z `Projects.csv` trafiają do listy doświadczeń.
 
@@ -126,7 +126,7 @@ Własny szablon: wrzuć plik `.docx` do `templates/` — pojawi się na liście.
 - `{{ cv.full_name }}`, `{{ cv.headline }}`, `{{ cv.summary }}`
 - `{%p for exp in cv.experiences %}` ... `{%p endfor %}`
 - `{{ cv.skills | join(', ') }}`, `{{ cv.languages | join(', ') }}`
-- `{%p for line in cv.education_lines %}` / `{%p for cert in cv.certifications %}`
+- `{%p for line in cv.education_lines %}`
 
 ## Google Docs (opcjonalne)
 

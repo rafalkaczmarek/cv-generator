@@ -13,7 +13,6 @@ Supported CSVs (matched case-insensitively, with or without a folder prefix):
 - ``Education.csv``        → education
 - ``Skills.csv``           → skills
 - ``Languages.csv``        → languages
-- ``Certifications.csv``   → certifications
 - ``Email Addresses.csv``  → email
 
 The importer is intentionally forgiving: missing files or columns are
@@ -31,7 +30,7 @@ from collections.abc import Mapping, Sequence
 from datetime import date
 from pathlib import Path
 
-from cv_generator.models import Certification, Education, Experience, Profile
+from cv_generator.models import Education, Experience, Profile
 
 __all__ = [
     "LinkedInImportError",
@@ -194,24 +193,6 @@ def _languages(rows: Sequence[Mapping[str, str]]) -> list[str]:
     return out
 
 
-def _certifications(rows: Sequence[Mapping[str, str]]) -> list[Certification]:
-    out: list[Certification] = []
-    for row in rows:
-        name = _get(row, "Name")
-        if not name:
-            continue
-        url = _get(row, "Url", "URL")
-        out.append(
-            Certification(
-                name=name,
-                issuer=_get(row, "Authority", "Issuer") or None,
-                issued=_parse_date(_get(row, "Started On", "Issued On")),
-                url=url if url.lower().startswith("http") else None,
-            )
-        )
-    return out
-
-
 def _primary_email(rows: Sequence[Mapping[str, str]]) -> str | None:
     fallback: str | None = None
     for row in rows:
@@ -267,13 +248,12 @@ _SECTIONS = {
     "education": "education",
     "skills": "skills",
     "languages": "languages",
-    "certifications": "certifications",
     "email addresses": "email",
 }
 
 _KNOWN_CSV_FILES = (
     "Profile.csv, Positions.csv, Projects.csv, Education.csv, Skills.csv, "
-    "Languages.csv, Certifications.csv, Email Addresses.csv"
+    "Languages.csv, Email Addresses.csv"
 )
 
 
@@ -294,7 +274,7 @@ def profile_from_csv_rows(sections: Mapping[str, Sequence[Mapping[str, str]]]) -
     """Build a Profile from already-parsed CSV rows, keyed by section name.
 
     Section keys: ``profile``, ``positions``, ``projects``, ``education``,
-    ``skills``, ``languages``, ``certifications``, ``email``.
+    ``skills``, ``languages``, ``email``.
     """
     fields: dict[str, object] = {}
     fields.update(_profile_fields(sections.get("profile", [])))
@@ -316,7 +296,6 @@ def profile_from_csv_rows(sections: Mapping[str, Sequence[Mapping[str, str]]]) -
         education=_education(sections.get("education", [])),
         skills=_skills(sections.get("skills", [])),
         languages=_languages(sections.get("languages", [])),
-        certifications=_certifications(sections.get("certifications", [])),
     )
 
 

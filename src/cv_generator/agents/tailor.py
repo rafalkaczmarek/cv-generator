@@ -37,7 +37,7 @@ _USER = (
     "Produce a TailoredCV JSON with the following fields: "
     "headline, summary, experiences (list of objects with company, title, "
     "location, date_range, bullets), education_lines (list of strings), "
-    "skills (ordered: most relevant first), languages, certifications."
+    "skills (ordered: most relevant first), languages."
 )
 
 
@@ -106,8 +106,6 @@ def _build_tailored_cv(parsed: dict, profile: Profile) -> TailoredCV:
         or [_format_education(e) for e in profile.education],
         skills=_as_str_list(parsed.get("skills")) or profile.skills,
         languages=_as_str_list(parsed.get("languages")) or profile.languages,
-        certifications=_as_str_list(parsed.get("certifications"))
-        or [c.name for c in profile.certifications],
     )
 
 
