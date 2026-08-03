@@ -10,6 +10,8 @@ FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
 PROFILE_CSV = FIXTURES_DIR / "Profile.csv"
 POSITIONS_CSV = FIXTURES_DIR / "Positions.csv"
+# Deliberately not chronological — import must sort by Start Date, newest first.
+PROJECTS_CSV = FIXTURES_DIR / "Projects.csv"
 
 
 def build_linkedin_zip(path: Path) -> Path:
@@ -18,6 +20,7 @@ def build_linkedin_zip(path: Path) -> Path:
     with zipfile.ZipFile(buffer, "w") as archive:
         archive.write(PROFILE_CSV, arcname="Profile.csv")
         archive.write(POSITIONS_CSV, arcname="Positions.csv")
+        archive.write(PROJECTS_CSV, arcname="Projects.csv")
         archive.writestr(
             "Skills.csv",
             "Name\r\nPython\r\nFastAPI\r\nDocker\r\n",

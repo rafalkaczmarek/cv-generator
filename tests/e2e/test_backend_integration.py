@@ -23,8 +23,12 @@ from cv_generator.services.linkedin_import import (
     profile_from_linkedin_zip,
 )
 from cv_generator.services.storage import Storage
-
-from tests.e2e.fixtures_data import POSITIONS_CSV, PROFILE_CSV, build_linkedin_zip
+from tests.e2e.fixtures_data import (
+    POSITIONS_CSV,
+    PROFILE_CSV,
+    PROJECTS_CSV,
+    build_linkedin_zip,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -140,10 +144,20 @@ def test_linkedin_csv_and_zip_import(tmp_path: Path) -> None:
     assert len(positions.experiences) == 2
     assert positions.experiences[0].company == "Acme Corp"
 
+    projects = profile_from_linkedin_csv("Projects.csv", PROJECTS_CSV.read_bytes())
+    assert [e.title for e in projects.experiences] == [
+        "CV Generator",
+        "Mid App",
+        "Legacy Portal",
+    ]
+    assert all(e.company == "Projekt" for e in projects.experiences)
+
     zip_path = build_linkedin_zip(tmp_path / "export.zip")
     merged = profile_from_linkedin_zip(zip_path)
     assert merged.full_name == "Jan Kowalski"
-    assert len(merged.experiences) == 2
+    assert len(merged.experiences) == 5  # 2 positions + 3 projects
+    project_titles = [e.title for e in merged.experiences if e.company == "Projekt"]
+    assert project_titles == ["CV Generator", "Mid App", "Legacy Portal"]
     assert "Python" in merged.skills
 
 

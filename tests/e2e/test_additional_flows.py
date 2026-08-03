@@ -7,7 +7,12 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.fixtures_data import POSITIONS_CSV, PROFILE_CSV, build_linkedin_zip
+from tests.e2e.fixtures_data import (
+    POSITIONS_CSV,
+    PROFILE_CSV,
+    PROJECTS_CSV,
+    build_linkedin_zip,
+)
 from tests.e2e.helpers import (
     E2E_PROFILE,
     analyze_pasted_job_offer,
@@ -88,6 +93,38 @@ def test_linkedin_positions_csv_import_partial_profile(page: Page, streamlit_url
     expect(page.get_by_label("Imię i nazwisko")).to_have_value("—", timeout=15_000)
     expect(page.locator("summary").filter(has_text="Acme Corp")).to_be_visible()
     expect(page.locator("summary").filter(has_text="Beta Sp. z o.o.")).to_be_visible()
+
+
+def test_linkedin_projects_csv_import_sorted_newest_first(
+    page: Page, streamlit_url: str
+) -> None:
+    """Projects.csv row order is ignored; UI shows newest start date first."""
+    goto_app(page, streamlit_url)
+    import_linkedin_file(page, PROJECTS_CSV)
+
+    expect(page.get_by_label("Imię i nazwisko")).to_have_value("—", timeout=15_000)
+    project_rows = page.locator("summary").filter(has_text="@ Projekt")
+    expect(project_rows).to_have_count(3)
+    expect(project_rows.nth(0)).to_contain_text("#1 CV Generator @ Projekt")
+    expect(project_rows.nth(1)).to_contain_text("#2 Mid App @ Projekt")
+    expect(project_rows.nth(2)).to_contain_text("#3 Legacy Portal @ Projekt")
+
+
+def test_linkedin_zip_import_projects_sorted_after_positions(
+    page: Page, streamlit_url: str, tmp_path: Path
+) -> None:
+    goto_app(page, streamlit_url)
+    zip_path = build_linkedin_zip(tmp_path / "linkedin_export_with_projects.zip")
+    import_linkedin_file(page, zip_path)
+
+    expect(page.get_by_label("Imię i nazwisko")).to_have_value("Jan Kowalski", timeout=15_000)
+    expect(page.locator("summary").filter(has_text="Acme Corp")).to_be_visible()
+    expect(page.locator("summary").filter(has_text="Beta Sp. z o.o.")).to_be_visible()
+    project_rows = page.locator("summary").filter(has_text="@ Projekt")
+    expect(project_rows).to_have_count(3)
+    expect(project_rows.nth(0)).to_contain_text("#3 CV Generator @ Projekt")
+    expect(project_rows.nth(1)).to_contain_text("#4 Mid App @ Projekt")
+    expect(project_rows.nth(2)).to_contain_text("#5 Legacy Portal @ Projekt")
 
 
 def test_linkedin_import_keeps_filled_fields_and_appends_experiences(
