@@ -229,6 +229,8 @@ def _experiences_from_projects(rows: Sequence[Mapping[str, str]]) -> list[Experi
 
     The Profile model has no separate projects list; projects are stored as
     experiences with company ``Projekt`` (same convention as URL import).
+
+    Sorted by start date, newest first (CSV export order is unreliable).
     """
     out: list[Experience] = []
     for row in rows:
@@ -252,7 +254,7 @@ def _experiences_from_projects(rows: Sequence[Mapping[str, str]]) -> list[Experi
                 summary=summary,
             )
         )
-    return out
+    return sorted(out, key=lambda e: e.start_date, reverse=True)
 
 
 # --- file/section dispatch --------------------------------------------------

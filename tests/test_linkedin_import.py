@@ -46,10 +46,12 @@ EMAIL_CSV = (
     "jan@example.com,Yes,Yes,2023\r\n"
 )
 
+# Deliberately not chronological — import must sort by Start Date, newest first.
 PROJECTS_CSV = (
     "Title,Start Date,End Date,Description,Url\r\n"
-    "CV Generator,Jan 2024,,Generator CV z LinkedIn,https://github.com/jan/cv\r\n"
+    "Mid App,Jun 2021,Dec 2022,Aplikacja pośrednia,\r\n"
     "Legacy Portal,Mar 2019,Dec 2020,Migracja monolitu,\r\n"
+    "CV Generator,Jan 2024,,Generator CV z LinkedIn,https://github.com/jan/cv\r\n"
 )
 
 
@@ -77,7 +79,7 @@ def test_zip_import_maps_all_sections() -> None:
 
     assert profile.email == "jan@example.com"  # primary wins over the older one
 
-    assert len(profile.experiences) == 4  # 2 positions + 2 projects
+    assert len(profile.experiences) == 5  # 2 positions + 3 projects
     current = profile.experiences[0]
     assert current.company == "Acme Corp"
     assert current.start_date == date(2021, 1, 1)
@@ -122,16 +124,20 @@ def test_single_csv_import() -> None:
 
 def test_projects_csv_import() -> None:
     profile = profile_from_linkedin_csv("Projects.csv", PROJECTS_CSV)
-    assert len(profile.experiences) == 2
-    first, second = profile.experiences
-    assert first.title == "CV Generator"
+    assert len(profile.experiences) == 3
+    first, second, third = profile.experiences
+    assert [e.title for e in profile.experiences] == [
+        "CV Generator",
+        "Mid App",
+        "Legacy Portal",
+    ]
     assert first.company == "Projekt"
     assert first.start_date == date(2024, 1, 1)
     assert first.is_current is True
     assert first.summary == "Generator CV z LinkedIn\nhttps://github.com/jan/cv"
-    assert second.title == "Legacy Portal"
-    assert second.end_date == date(2020, 12, 1)
-    assert second.is_current is False
+    assert second.start_date == date(2021, 6, 1)
+    assert third.end_date == date(2020, 12, 1)
+    assert third.is_current is False
 
 
 def test_directory_import(tmp_path) -> None:
