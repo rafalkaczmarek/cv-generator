@@ -70,6 +70,23 @@ def test_analyze_job_parses_json_embedded_in_prose(monkeypatch: pytest.MonkeyPat
     assert offer.title == "Embedded"
 
 
+def test_analyze_job_parses_gemini_content_blocks(monkeypatch: pytest.MonkeyPatch) -> None:
+    payload = [
+        {
+            "type": "text",
+            "text": (
+                '{"title": "Block Dev", "company": "GeminiCo", '
+                '"requirements": ["Python"], "nice_to_have": [], '
+                '"responsibilities": [], "keywords": ["python"]}'
+            ),
+        }
+    ]
+    monkeypatch.setattr(job_analyzer, "get_json_llm", lambda: FakeLLM(payload))
+    offer = job_analyzer.analyze_job(url=None, raw_text="Job posting")
+    assert offer.title == "Block Dev"
+    assert offer.company == "GeminiCo"
+
+
 def test_analyze_job_normalizes_scalar_requirements(monkeypatch: pytest.MonkeyPatch) -> None:
     payload = '{"title": "Role", "company": "Z", "requirements": "Python"}'
     monkeypatch.setattr(job_analyzer, "get_json_llm", lambda: FakeLLM(payload))

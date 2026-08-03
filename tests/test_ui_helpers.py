@@ -18,6 +18,10 @@ from cv_generator.ui import state as ui_state
             "OpenAI (gpt-4o-mini)",
         ),
         (
+            SimpleNamespace(llm_provider="gemini", gemini_model="gemini-3.6-flash"),
+            "Gemini (gemini-3.6-flash)",
+        ),
+        (
             SimpleNamespace(llm_provider="github", github_model="openai/gpt-4.1-mini"),
             "GitHub Models (openai/gpt-4.1-mini)",
         ),
@@ -61,6 +65,35 @@ def test_format_llm_error_github_no_access(monkeypatch: pytest.MonkeyPatch) -> N
     message = ui_llm.format_llm_error(RuntimeError("no_access for model xyz"))
     assert "models:read" in message
     assert "no_access" in message
+
+
+def test_format_llm_error_gemini_invalid_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        ui_llm,
+        "llm_provider_label",
+        lambda _settings: "Gemini (gemini-3.6-flash)",
+    )
+    monkeypatch.setattr(
+        "cv_generator.config.get_settings",
+        lambda: SimpleNamespace(llm_provider="gemini"),
+    )
+
+    message = ui_llm.format_llm_error(RuntimeError("API_KEY_INVALID: API key not valid"))
+    assert "GEMINI_API_KEY" in message
+    assert "aistudio.google.com" in message
+
+
+def test_format_llm_error_github_retirement(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "cv_generator.config.get_settings",
+        lambda: SimpleNamespace(llm_provider="github", github_model="openai/gpt-4.1-mini"),
+    )
+
+    message = ui_llm.format_llm_error(
+        RuntimeError("Error code: 410 - github_models_retirement_brownout")
+    )
+    assert "wycofane" in message.lower()
+    assert "LLM_PROVIDER=gemini" in message
 
 
 def test_format_llm_error_passthrough(monkeypatch: pytest.MonkeyPatch) -> None:

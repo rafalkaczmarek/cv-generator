@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from langchain_core.language_models import BaseChatModel
 
 from cv_generator.config import get_settings
@@ -54,6 +56,25 @@ def get_llm(*, json_mode: bool = False) -> BaseChatModel:
             **extra_kwargs,
         )
 
+    if settings.llm_provider == "gemini":
+        if not settings.gemini_api_key:
+            raise RuntimeError(
+                "GEMINI_API_KEY nie jest ustawiony. "
+                "Wygeneruj klucz na https://aistudio.google.com/apikey."
+            )
+        _reject_placeholder_key(settings.gemini_api_key, env_var="GEMINI_API_KEY")
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        gemini_kwargs: dict = {}
+        if json_mode:
+            gemini_kwargs["response_mime_type"] = "application/json"
+        return ChatGoogleGenerativeAI(
+            model=settings.gemini_model,
+            google_api_key=settings.gemini_api_key,
+            temperature=0.2,
+            **gemini_kwargs,
+        )
+
     if settings.llm_provider == "anthropic":
         if not settings.anthropic_api_key:
             raise RuntimeError(
@@ -78,6 +99,50 @@ def get_llm(*, json_mode: bool = False) -> BaseChatModel:
 
 def get_json_llm() -> BaseChatModel:
     settings = get_settings()
-    if settings.llm_provider in ("openai", "github"):
+    if settings.llm_provider in ("openai", "github", "gemini"):
         return get_llm(json_mode=True)
     return get_llm()
+
+
+def message_content_to_text(content: object) -> str:
+    """Normalize LangChain message content (str or content blocks) to plain text."""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict):
+                text = block.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+            else:
+                text = getattr(block, "text", None)
+                if isinstance(text, str):
+                    parts.append(text)
+        return "".join(parts)
+    return str(content)
+
+
+def parse_llm_json(content: object) -> dict:
+    """Parse JSON from an LLM response, including Gemini content-block lists."""
+    text = message_content_to_text(content).strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.lower().startswith("json"):
+            text = text[4:]
+        text = text.strip()
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start == -1 or end == -1:
+            raise
+        parsed = json.loads(text[start : end + 1])
+    if not isinstance(parsed, dict):
+        raise ValueError(f"Expected JSON object from LLM, got {type(parsed).__name__}")
+    return parsed

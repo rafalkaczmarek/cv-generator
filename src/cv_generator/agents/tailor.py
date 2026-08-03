@@ -12,7 +12,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from cv_generator.graph.state import GapAnalysis
 from cv_generator.models import JobOffer, Profile, TailoredCV, TailoredExperience
-from cv_generator.services.llm import get_json_llm, get_llm
+from cv_generator.services.llm import get_json_llm, get_llm, parse_llm_json
 
 _SYSTEM = (
     "You are an expert resume writer tailoring an existing profile to a specific "
@@ -68,7 +68,7 @@ def tailor_cv(
         }
     )
 
-    parsed = _parse_json_payload(response.content)
+    parsed = parse_llm_json(response.content)
     return _build_tailored_cv(parsed, profile)
 
 
@@ -146,24 +146,4 @@ def _as_str_list(value: object) -> list[str]:
 def _supports_json_mode() -> bool:
     from cv_generator.config import get_settings
 
-    return get_settings().llm_provider in ("openai", "github")
-
-
-def _parse_json_payload(content: object) -> dict:
-    import json
-
-    text = content if isinstance(content, str) else str(content)
-    text = text.strip()
-    if text.startswith("```"):
-        text = text.strip("`")
-        if text.lower().startswith("json"):
-            text = text[4:]
-        text = text.strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        start = text.find("{")
-        end = text.rfind("}")
-        if start != -1 and end != -1:
-            return json.loads(text[start : end + 1])
-        raise
+    return get_settings().llm_provider in ("openai", "github", "gemini")

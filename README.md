@@ -15,7 +15,7 @@ Lokalna aplikacja, która na podstawie Twojego profilu i wymagań konkretnej ofe
 ## Wymagania
 
 - Python **3.11** lub nowszy
-- Dostęp do modelu LLM: GitHub Models (token GitHub z uprawnieniem `models:read`), OpenAI albo Anthropic
+- Dostęp do modelu LLM: Google Gemini (darmowy klucz z Google AI Studio), OpenAI albo Anthropic
 - Microsoft Word, LibreOffice albo Google Docs do edycji szablonu CV
 
 ## Instalacja
@@ -36,17 +36,19 @@ copy .env.example .env     # Windows
 
 Uzupełnij `.env` danymi dostawcy LLM.
 
-Domyślnie używany jest **GitHub Models** (kompatybilny z API OpenAI). Ustaw:
+Domyślnie używany jest **Google Gemini** — ma darmowy tier (m.in. ~250 req/dzień
+na `gemini-3.6-flash`) i nie wymaga karty. Ustaw:
 
 ```env
-LLM_PROVIDER=github
-GITHUB_TOKEN=<twój_token_github_z_uprawnieniem_models:read>
-GITHUB_MODEL=openai/gpt-4.1-mini
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=<klucz z https://aistudio.google.com/apikey>
+GEMINI_MODEL=gemini-3.6-flash
 ```
 
-Token wygenerujesz w GitHub: **Settings → Developer settings → Personal access tokens**
-(fine-grained), nadając uprawnienie **Models: read**. Alternatywnie ustaw
-`LLM_PROVIDER=openai` lub `LLM_PROVIDER=anthropic` i wypełnij odpowiedni klucz API.
+Klucz wygenerujesz w [Google AI Studio](https://aistudio.google.com/apikey)
+(wymagane konto Google). Alternatywnie ustaw `LLM_PROVIDER=openai` lub
+`LLM_PROVIDER=anthropic` i wypełnij odpowiedni klucz API. Provider `github`
+(GitHub Models) nadal jest w kodzie, ale usługa została wycofana 30.07.2026.
 
 ## Uruchomienie
 

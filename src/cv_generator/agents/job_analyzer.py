@@ -6,7 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from cv_generator.models import JobOffer
 from cv_generator.services.job_fetcher import JobFetchError, fetch_job_text
-from cv_generator.services.llm import get_json_llm
+from cv_generator.services.llm import get_json_llm, parse_llm_json
 
 _SYSTEM = (
     "You are a recruitment analyst. Given the raw text of a job offer, extract "
@@ -41,7 +41,7 @@ def analyze_job(*, url: str | None, raw_text: str | None) -> JobOffer:
     chain = prompt | llm
 
     response = chain.invoke({"url": url or "(pasted text, no URL)", "raw_text": text[:12000]})
-    parsed = _parse_json_payload(response.content)
+    parsed = parse_llm_json(response.content)
 
     return JobOffer(
         url=url,
@@ -54,26 +54,6 @@ def analyze_job(*, url: str | None, raw_text: str | None) -> JobOffer:
         responsibilities=_as_str_list(parsed.get("responsibilities")),
         keywords=_as_str_list(parsed.get("keywords")),
     )
-
-
-def _parse_json_payload(content: object) -> dict:
-    import json
-
-    text = content if isinstance(content, str) else str(content)
-    text = text.strip()
-    if text.startswith("```"):
-        text = text.strip("`")
-        if text.lower().startswith("json"):
-            text = text[4:]
-        text = text.strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        start = text.find("{")
-        end = text.rfind("}")
-        if start != -1 and end != -1:
-            return json.loads(text[start : end + 1])
-        raise
 
 
 def _as_str_list(value: object) -> list[str]:

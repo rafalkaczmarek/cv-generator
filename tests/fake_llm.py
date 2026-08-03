@@ -8,12 +8,12 @@ from langchain_core.runnables import Runnable
 
 
 class FakeLLMResponse:
-    def __init__(self, content: str) -> None:
+    def __init__(self, content: Any) -> None:
         self.content = content
 
 
 class FakeLLM(Runnable[Any, FakeLLMResponse]):
-    def __init__(self, payload: str) -> None:
+    def __init__(self, payload: Any) -> None:
         super().__init__()
         self.payload = payload
 

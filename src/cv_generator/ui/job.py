@@ -25,8 +25,10 @@ def render_job_tab() -> None:
                     st.session_state.job_offer = offer
                     storage().save_job_offer(offer)
                     st.success(f"Oferta przeanalizowana: {offer.title} @ {offer.company}")
-                except (JobFetchError, ValueError) as exc:
+                except JobFetchError as exc:
                     st.error(f"Nie udało się pobrać oferty: {exc}")
+                except ValueError as exc:
+                    st.error(f"Nie udało się przeanalizować oferty: {exc}")
                 except Exception as exc:  # pragma: no cover - LLM/network errors
                     st.error(format_llm_error(exc))
 

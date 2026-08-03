@@ -20,6 +20,8 @@ _ENV_FIELD_MAP: dict[str, str] = {
     "OPENAI_MODEL": "openai_model",
     "ANTHROPIC_API_KEY": "anthropic_api_key",
     "ANTHROPIC_MODEL": "anthropic_model",
+    "GEMINI_API_KEY": "gemini_api_key",
+    "GEMINI_MODEL": "gemini_model",
     "GITHUB_TOKEN": "github_token",
     "GITHUB_MODEL": "github_model",
     "GITHUB_BASE_URL": "github_base_url",
@@ -34,11 +36,13 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    llm_provider: Literal["openai", "anthropic", "github", "stub"] = "github"
+    llm_provider: Literal["openai", "anthropic", "gemini", "github", "stub"] = "gemini"
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-3-5-sonnet-latest"
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-3.6-flash"
     github_token: str | None = None
     github_model: str = "openai/gpt-4.1-mini"
     github_base_url: str = "https://models.github.ai/inference"
@@ -103,7 +107,7 @@ def _reload_env_into_process() -> None:
         return
     if ENV_FILE.exists():
         load_dotenv(ENV_FILE, override=True)
-    if _parse_env_file().get("LLM_PROVIDER", "github") != "openai":
+    if _parse_env_file().get("LLM_PROVIDER", "gemini") != "openai":
         _scrub_openai_process_env()
 
 
