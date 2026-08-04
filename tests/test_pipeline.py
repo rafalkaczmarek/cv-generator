@@ -61,3 +61,31 @@ def test_generate_cv_retries_until_max_iterations(
 
     assert result is sample_tailored_cv
     assert tailor_calls == 2
+
+
+def test_generate_cv_passes_language_to_tailor(
+    monkeypatch,
+    sample_profile,
+    sample_job,
+    sample_tailored_cv,
+) -> None:
+    monkeypatch.setattr(
+        pipeline,
+        "analyze_gap",
+        lambda _profile, _job: GapAnalysis(emphasis_notes=[]),
+    )
+    seen: dict[str, str] = {}
+
+    def fake_tailor(**kwargs) -> TailoredCV:
+        seen["language"] = kwargs["language"]
+        return sample_tailored_cv
+
+    monkeypatch.setattr(pipeline, "tailor_cv", fake_tailor)
+    monkeypatch.setattr(
+        pipeline,
+        "validate",
+        lambda **kwargs: (90, "ok", kwargs["cv"]),
+    )
+
+    pipeline.generate_cv(sample_profile, sample_job, language="pl")
+    assert seen["language"] == "pl"

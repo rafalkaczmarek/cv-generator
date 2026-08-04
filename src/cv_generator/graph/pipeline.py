@@ -26,12 +26,13 @@ def _gap_node(state: GenerationState) -> GenerationState:
 
 def _tailor_node(state: GenerationState) -> GenerationState:
     settings = get_settings()
+    language = state.get("language") or settings.app_language
     cv = tailor_cv(
         profile=state["profile"],
         job=state["job"],
         gap=state.get("gap", {}),
         feedback=state.get("feedback", ""),
-        language=settings.app_language,
+        language=language,
     )
     return {"tailored": cv, "iteration": state.get("iteration", 0) + 1}
 
@@ -69,8 +70,21 @@ def build_graph():
     return graph.compile()
 
 
-def generate_cv(profile: Profile, job: JobOffer) -> TailoredCV:
+def generate_cv(
+    profile: Profile,
+    job: JobOffer,
+    *,
+    language: str | None = None,
+) -> TailoredCV:
     """Run the pipeline synchronously and return the final TailoredCV."""
+    settings = get_settings()
     graph = build_graph()
-    final_state = graph.invoke({"profile": profile, "job": job, "iteration": 0})
+    final_state = graph.invoke(
+        {
+            "profile": profile,
+            "job": job,
+            "iteration": 0,
+            "language": language or settings.app_language,
+        }
+    )
     return final_state["tailored"]

@@ -19,6 +19,7 @@ class GenerationState(TypedDict, total=False):
     job: JobOffer
     gap: GapAnalysis
     tailored: TailoredCV
+    language: str
     iteration: int
     score: int
     feedback: str

@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     app_data_dir: Path = Field(default=Path("./data"))
     app_output_dir: Path = Field(default=Path("./output"))
     app_templates_dir: Path = Field(default=Path("./templates"))
-    app_language: str = "pl"
+    app_language: str = "en"
     http_timeout_seconds: int = 15
     http_user_agent: str = "Mozilla/5.0 (compatible; CVGeneratorBot/0.1)"
     min_match_score: int = 70

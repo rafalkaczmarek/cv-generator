@@ -75,7 +75,7 @@ def test_full_cv_generation_and_export(
     assert docx_files, "Expected at least one generated DOCX in output dir"
     assert docx_files[0].stat().st_size > 0
     doc_text = "\n".join(p.text for p in Document(docx_files[0]).paragraphs)
-    assert "KURSY" in doc_text or "Kursy" in doc_text
+    assert "COURSES" in doc_text or "Courses" in doc_text or "KURSY" in doc_text
     assert "AWS Certified Developer" in doc_text
 
     export_panel = page.get_by_role("tabpanel", name="Eksport")

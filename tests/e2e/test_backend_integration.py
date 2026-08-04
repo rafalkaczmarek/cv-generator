@@ -131,7 +131,7 @@ def test_stub_llm_export_roundtrip(
     assert path.exists()
     assert path.stat().st_size > 0
     text = "\n".join(p.text for p in Document(path).paragraphs)
-    assert "KURSY" in text
+    assert "COURSES" in text
     assert "AWS Certified Developer" in text
 
     modern = render_cv(cv, template_id="cv_modern.docx", filename="cv_e2e_modern.docx")

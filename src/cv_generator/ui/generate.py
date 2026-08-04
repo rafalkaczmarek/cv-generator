@@ -23,12 +23,30 @@ def render_generate_tab() -> None:
 
     st.write(f"Profil: **{profile.full_name}**")
     st.write(f"Oferta: **{offer.title}** @ **{offer.company}**")
+    st.caption("CV jest domyślnie generowane po angielsku.")
+
+    also_polish = st.checkbox(
+        "Wygeneruj też wersję polską",
+        value=False,
+        help="Uruchamia dodatkowy przebieg pipeline'u i zapisuje osobne CV po polsku.",
+    )
 
     if st.button("Uruchom pipeline agentów", type="primary"):
-        with st.spinner("Agenci analizują profil i oferta, dopasowują treść CV..."):
+        with st.spinner("Agenci analizują profil i ofertę, dopasowują treść CV..."):
             try:
-                cv = generate_cv(profile, offer)
-                st.session_state.tailored = cv
-                st.success(f"Gotowe. Match score: {cv.match_score}/100")
+                cv_en = generate_cv(profile, offer, language="en")
+                st.session_state.tailored = cv_en
+                st.session_state.preview_language = "en"
+                st.session_state.pop("tailored_pl", None)
+
+                if also_polish:
+                    cv_pl = generate_cv(profile, offer, language="pl")
+                    st.session_state.tailored_pl = cv_pl
+                    st.success(
+                        f"Gotowe (EN + PL). Match score EN: {cv_en.match_score}/100, "
+                        f"PL: {cv_pl.match_score}/100"
+                    )
+                else:
+                    st.success(f"Gotowe. Match score: {cv_en.match_score}/100")
             except Exception as exc:  # pragma: no cover - LLM errors
                 st.error(format_llm_error(exc))

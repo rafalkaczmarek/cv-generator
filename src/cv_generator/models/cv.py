@@ -36,3 +36,4 @@ class TailoredCV(BaseModel):
     matched_keywords: list[str] = Field(default_factory=list)
     missing_keywords: list[str] = Field(default_factory=list)
     match_score: int = 0
+    language: str = "en"

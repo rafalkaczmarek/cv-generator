@@ -130,3 +130,24 @@ def test_tailor_cv_falls_back_to_profile_courses(
     monkeypatch.setattr(tailor, "get_json_llm", lambda: FakeLLM(payload))
     cv = tailor.tailor_cv(profile=sample_profile, job=sample_job, gap=sample_gap)
     assert cv.courses == sample_profile.courses
+
+
+def test_tailor_cv_sets_language_and_present_label(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_profile,
+    sample_job,
+    sample_gap,
+) -> None:
+    payload = '{"headline": "Dev", "summary": "Summary.", "experiences": []}'
+    monkeypatch.setattr(tailor, "get_json_llm", lambda: FakeLLM(payload))
+    cv = tailor.tailor_cv(
+        profile=sample_profile, job=sample_job, gap=sample_gap, language="en"
+    )
+    assert cv.language == "en"
+    assert cv.experiences[0].date_range.endswith("Present")
+
+    cv_pl = tailor.tailor_cv(
+        profile=sample_profile, job=sample_job, gap=sample_gap, language="pl"
+    )
+    assert cv_pl.language == "pl"
+    assert cv_pl.experiences[0].date_range.endswith("obecnie")

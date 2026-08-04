@@ -47,7 +47,7 @@ def tailor_cv(
     job: JobOffer,
     gap: GapAnalysis,
     feedback: str = "",
-    language: str = "pl",
+    language: str = "en",
 ) -> TailoredCV:
     llm = get_json_llm() if _supports_json_mode() else get_llm()
 
@@ -69,10 +69,10 @@ def tailor_cv(
     )
 
     parsed = parse_llm_json(response.content)
-    return _build_tailored_cv(parsed, profile)
+    return _build_tailored_cv(parsed, profile, language=language)
 
 
-def _build_tailored_cv(parsed: dict, profile: Profile) -> TailoredCV:
+def _build_tailored_cv(parsed: dict, profile: Profile, *, language: str = "en") -> TailoredCV:
     experiences_raw = parsed.get("experiences") or []
     experiences: list[TailoredExperience] = []
     for item in experiences_raw:
@@ -89,7 +89,9 @@ def _build_tailored_cv(parsed: dict, profile: Profile) -> TailoredCV:
         )
 
     if not experiences:
-        experiences = [_fallback_experience(exp) for exp in profile.sorted_experiences()]
+        experiences = [
+            _fallback_experience(exp, language=language) for exp in profile.sorted_experiences()
+        ]
 
     return TailoredCV(
         full_name=profile.full_name,
@@ -107,23 +109,33 @@ def _build_tailored_cv(parsed: dict, profile: Profile) -> TailoredCV:
         skills=_as_str_list(parsed.get("skills")) or profile.skills,
         courses=_as_str_list(parsed.get("courses")) or profile.courses,
         languages=_as_str_list(parsed.get("languages")) or profile.languages,
+        language=language,
     )
 
 
-def _fallback_experience(exp) -> TailoredExperience:
+def _fallback_experience(exp, *, language: str = "en") -> TailoredExperience:
     return TailoredExperience(
         company=exp.company,
         title=exp.title,
         location=exp.location,
-        date_range=_format_date_range(exp.start_date, exp.end_date, exp.is_current),
+        date_range=_format_date_range(
+            exp.start_date, exp.end_date, exp.is_current, language=language
+        ),
         bullets=list(exp.bullets),
     )
 
 
-def _format_date_range(start: date, end: date | None, is_current: bool) -> str:
+def _format_date_range(
+    start: date,
+    end: date | None,
+    is_current: bool,
+    *,
+    language: str = "en",
+) -> str:
     start_str = start.strftime("%m/%Y")
     if is_current or end is None:
-        return f"{start_str} - obecnie"
+        present = "obecnie" if language.lower().startswith("pl") else "Present"
+        return f"{start_str} - {present}"
     return f"{start_str} - {end.strftime('%m/%Y')}"
 
 

@@ -90,7 +90,7 @@ def test_render_cv_uses_default_filename(sample_tailored_cv, tmp_path: Path) -> 
         template_path=template,
         output_dir=tmp_path / "out",
     )
-    assert output_path.name.startswith("cv_jan_kowalski_")
+    assert output_path.name.startswith("cv_jan_kowalski_en_")
     assert output_path.suffix == ".docx"
 
 
@@ -109,11 +109,28 @@ def test_render_cv_includes_courses_section(sample_tailored_cv, tmp_path: Path) 
         template_path=template,
         output_dir=tmp_path / "out",
         filename="with_courses.docx",
+        language="en",
+    )
+    text = "\n".join(p.text for p in Document(output_path).paragraphs)
+    assert "COURSES" in text
+    assert "Kubernetes Fundamentals" in text
+    skills_pos = text.index("SKILLS")
+    courses_pos = text.index("COURSES")
+    languages_pos = text.index("LANGUAGES")
+    assert skills_pos < courses_pos < languages_pos
+
+
+def test_render_cv_uses_polish_section_labels(sample_tailored_cv, tmp_path: Path) -> None:
+    template = ensure_default_template(template_dir=tmp_path / "templates")
+    pl_cv = sample_tailored_cv.model_copy(update={"language": "pl"})
+    output_path = render_cv(
+        pl_cv,
+        template_path=template,
+        output_dir=tmp_path / "out",
+        filename="pl.docx",
     )
     text = "\n".join(p.text for p in Document(output_path).paragraphs)
     assert "KURSY" in text
-    assert "Kubernetes Fundamentals" in text
-    skills_pos = text.index("UMIEJĘTNOŚCI")
-    courses_pos = text.index("KURSY")
-    languages_pos = text.index("JĘZYKI")
-    assert skills_pos < courses_pos < languages_pos
+    assert "UMIEJĘTNOŚCI" in text
+    assert "JĘZYKI" in text
+    assert "COURSES" not in text

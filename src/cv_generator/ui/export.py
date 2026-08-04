@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import streamlit as st
 
 from cv_generator.config import get_settings
@@ -10,9 +12,35 @@ from cv_generator.services.docx_generator import list_templates, render_cv
 from cv_generator.ui.state import ss_get, storage
 
 
+def _lang_suffix(cv: TailoredCV) -> str:
+    return "pl" if str(cv.language or "en").lower().startswith("pl") else "en"
+
+
+def _export_one(
+    cv: TailoredCV,
+    *,
+    offer: JobOffer | None,
+    profile: Profile | None,
+    template_id: str | None,
+) -> Path:
+    filename = None
+    if offer:
+        filename = f"cv_{offer.slug()}_{_lang_suffix(cv)}.docx"
+    path = render_cv(cv, template_id=template_id, filename=filename, language=cv.language)
+    if profile and offer:
+        storage().record_generated_cv(
+            profile_name=profile.full_name,
+            job_slug=offer.slug(),
+            file_path=path,
+            cv=cv,
+        )
+    return path
+
+
 def render_export_tab() -> None:
     st.header("Eksport i historia")
     cv: TailoredCV | None = ss_get("tailored")
+    cv_pl: TailoredCV | None = ss_get("tailored_pl")
     offer: JobOffer | None = ss_get("job_offer")
     profile: Profile | None = ss_get("profile")
 
@@ -33,26 +61,30 @@ def render_export_tab() -> None:
 
     if cv and st.button("Zapisz jako DOCX", type="primary"):
         try:
-            filename = None
-            if offer:
-                stamp_slug = offer.slug()
-                filename = f"cv_{stamp_slug}.docx"
-            path = render_cv(cv, template_id=selected_id, filename=filename)
-            if profile and offer:
-                storage().record_generated_cv(
-                    profile_name=profile.full_name,
-                    job_slug=offer.slug(),
-                    file_path=path,
-                    cv=cv,
+            paths: list[tuple[str, Path]] = []
+            path_en = _export_one(
+                cv, offer=offer, profile=profile, template_id=selected_id
+            )
+            paths.append(("English", path_en))
+            if cv_pl:
+                path_pl = _export_one(
+                    cv_pl, offer=offer, profile=profile, template_id=selected_id
                 )
-            st.success(f"Zapisano: {path}")
-            with open(path, "rb") as fh:
-                st.download_button(
-                    "Pobierz plik",
-                    data=fh.read(),
-                    file_name=path.name,
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                )
+                paths.append(("Polski", path_pl))
+
+            for label, path in paths:
+                st.success(f"Zapisano ({label}): {path}")
+                with open(path, "rb") as fh:
+                    st.download_button(
+                        f"Pobierz plik ({label})",
+                        data=fh.read(),
+                        file_name=path.name,
+                        mime=(
+                            "application/vnd.openxmlformats-officedocument"
+                            ".wordprocessingml.document"
+                        ),
+                        key=f"dl_{path.name}",
+                    )
         except Exception as exc:  # pragma: no cover - filesystem/template errors
             st.error(f"Nie udało się zapisać DOCX: {exc}")
 

@@ -115,8 +115,8 @@ def export_docx(page: Page, *, template_option: str | None = None) -> None:
     if template_option is not None:
         select_cv_template(page, template_option)
     page.get_by_role("button", name="Zapisz jako DOCX").click()
-    expect(page.get_by_text("Zapisano:")).to_be_visible(timeout=30_000)
-    expect(page.get_by_role("button", name="Pobierz plik")).to_be_visible()
+    expect(page.get_by_text(re.compile(r"Zapisano"))).to_be_visible(timeout=30_000)
+    expect(page.get_by_role("button", name=re.compile(r"Pobierz plik"))).to_be_visible()
 
 
 def _open_details(page: Page, summary_text: str) -> None:

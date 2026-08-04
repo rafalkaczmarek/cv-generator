@@ -28,6 +28,33 @@ _BUILTIN_LABELS: dict[str, tuple[str, str]] = {
     "cv_compact.docx": ("Kompaktowy", "Mniejsza czcionka — więcej treści na jednej stronie."),
 }
 
+_SECTION_LABELS: dict[str, dict[str, str]] = {
+    "en": {
+        "profile": "Profile",
+        "experience": "Experience",
+        "education": "Education",
+        "skills": "Skills",
+        "courses": "Courses",
+        "languages": "Languages",
+    },
+    "pl": {
+        "profile": "Profil",
+        "experience": "Doświadczenie",
+        "education": "Wykształcenie",
+        "skills": "Umiejętności",
+        "courses": "Kursy",
+        "languages": "Języki",
+    },
+}
+
+
+def section_labels_for(language: str | None = None) -> dict[str, str]:
+    """Return DOCX section headings for the given CV language."""
+    code = (language or "en").lower()
+    if code.startswith("pl"):
+        return dict(_SECTION_LABELS["pl"])
+    return dict(_SECTION_LABELS["en"])
+
 
 @dataclass(frozen=True)
 class TemplateInfo:
@@ -117,6 +144,7 @@ def render_cv(
     template_id: str | None = None,
     output_dir: Path | None = None,
     filename: str | None = None,
+    language: str | None = None,
 ) -> Path:
     """Render the CV to a .docx file and return its path."""
     settings = get_settings()
@@ -125,14 +153,16 @@ def render_cv(
     output_dir = output_dir or settings.app_output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    lang = language or getattr(cv, "language", None) or settings.app_language or "en"
     if filename is None:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         name_slug = "_".join(cv.full_name.lower().split())
-        filename = f"cv_{name_slug}_{stamp}.docx"
+        lang_suffix = "pl" if str(lang).lower().startswith("pl") else "en"
+        filename = f"cv_{name_slug}_{lang_suffix}_{stamp}.docx"
 
     output_path = output_dir / filename
     doc = DocxTemplate(str(template_path))
-    doc.render({"cv": cv.model_dump()})
+    doc.render({"cv": cv.model_dump(), "labels": section_labels_for(lang)})
     doc.save(str(output_path))
     return output_path
 
@@ -255,6 +285,12 @@ def _add_contact_line(doc: Document, *, size: int):
     return contact
 
 
+def _section_title_placeholder(key: str, *, uppercase: bool) -> str:
+    if uppercase:
+        return "{{ labels." + key + " | upper }}"
+    return "{{ labels." + key + " }}"
+
+
 def _add_cv_body(
     doc: Document,
     *,
@@ -264,26 +300,22 @@ def _add_cv_body(
     section_uppercase: bool = True,
     tight: bool = False,
 ) -> None:
-    _add_section_title(
-        doc,
-        "Profil",
-        accent=accent,
-        size=section_size,
-        uppercase=section_uppercase,
-        tight=tight,
-    )
+    def section(key: str) -> None:
+        _add_section_title(
+            doc,
+            _section_title_placeholder(key, uppercase=section_uppercase),
+            accent=accent,
+            size=section_size,
+            uppercase=False,
+            tight=tight,
+        )
+
+    section("profile")
     summary = doc.add_paragraph("{{ cv.summary }}")
     if tight:
         summary.paragraph_format.space_after = Pt(4)
 
-    _add_section_title(
-        doc,
-        "Doświadczenie",
-        accent=accent,
-        size=section_size,
-        uppercase=section_uppercase,
-        tight=tight,
-    )
+    section("experience")
     doc.add_paragraph("{%p for exp in cv.experiences %}")
     p = doc.add_paragraph()
     if tight:
@@ -305,48 +337,20 @@ def _add_cv_body(
     doc.add_paragraph("{%p endfor %}")
     doc.add_paragraph("{%p endfor %}")
 
-    _add_section_title(
-        doc,
-        "Wykształcenie",
-        accent=accent,
-        size=section_size,
-        uppercase=section_uppercase,
-        tight=tight,
-    )
+    section("education")
     doc.add_paragraph("{%p for line in cv.education_lines %}")
     edu = doc.add_paragraph("{{ line }}", style="List Bullet")
     if tight:
         edu.paragraph_format.space_after = Pt(0)
     doc.add_paragraph("{%p endfor %}")
 
-    _add_section_title(
-        doc,
-        "Umiejętności",
-        accent=accent,
-        size=section_size,
-        uppercase=section_uppercase,
-        tight=tight,
-    )
+    section("skills")
     doc.add_paragraph("{{ cv.skills | join(', ') }}")
 
-    _add_section_title(
-        doc,
-        "Kursy",
-        accent=accent,
-        size=section_size,
-        uppercase=section_uppercase,
-        tight=tight,
-    )
+    section("courses")
     doc.add_paragraph("{{ cv.courses | join(', ') }}")
 
-    _add_section_title(
-        doc,
-        "Języki",
-        accent=accent,
-        size=section_size,
-        uppercase=section_uppercase,
-        tight=tight,
-    )
+    section("languages")
     doc.add_paragraph("{{ cv.languages | join(', ') }}")
 
 
