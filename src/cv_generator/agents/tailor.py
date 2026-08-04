@@ -40,6 +40,30 @@ _USER = (
     "skills (ordered: most relevant first), courses, languages."
 )
 
+_SUMMARY_SYSTEM = (
+    "You are an expert resume writer rewriting only the professional summary "
+    "of a tailored CV for a specific job offer. Hard rules:\n"
+    "1. NEVER invent companies, titles, dates, technologies or achievements. "
+    "Only rephrase or emphasize facts that already appear in the profile.\n"
+    "2. Mirror the job's vocabulary where the profile honestly supports it.\n"
+    "3. Keep the summary to 2-4 sentences.\n"
+    "4. Produce a meaningfully different wording from the current summary "
+    "while staying truthful to the profile.\n"
+    "5. Output language: {language}.\n"
+    "Reply with valid JSON only: {{\"summary\": \"...\"}}."
+)
+
+_SUMMARY_USER = (
+    "Job offer:\n"
+    "Title: {job_title}\nCompany: {job_company}\n"
+    "Requirements: {requirements}\nNice to have: {nice_to_have}\n"
+    "Keywords to emphasize when supported by the profile: {keywords}\n\n"
+    "Gap analysis notes:\n{gap_notes}\n\n"
+    "Candidate profile (source of truth):\n{profile_json}\n\n"
+    "Current CV headline: {headline}\n"
+    "Current summary (rewrite this — do not repeat it verbatim):\n{current_summary}\n"
+)
+
 
 def tailor_cv(
     *,
@@ -70,6 +94,45 @@ def tailor_cv(
 
     parsed = parse_llm_json(response.content)
     return _build_tailored_cv(parsed, profile, language=language)
+
+
+def rewrite_summary(
+    *,
+    profile: Profile,
+    job: JobOffer,
+    gap: GapAnalysis,
+    current_summary: str,
+    headline: str = "",
+    language: str = "en",
+) -> str:
+    """Generate an alternative professional summary for an existing tailored CV."""
+    llm = get_json_llm() if _supports_json_mode() else get_llm()
+
+    prompt = ChatPromptTemplate.from_messages(
+        [("system", _SUMMARY_SYSTEM), ("user", _SUMMARY_USER)]
+    )
+    chain = prompt | llm
+
+    response = chain.invoke(
+        {
+            "language": language,
+            "job_title": job.title or "",
+            "job_company": job.company or "",
+            "requirements": "; ".join(job.requirements) or "(none)",
+            "nice_to_have": "; ".join(job.nice_to_have) or "(none)",
+            "keywords": ", ".join(job.keywords) or "(none)",
+            "gap_notes": "\n".join(gap.get("emphasis_notes", []) or []) or "(none)",
+            "profile_json": profile.model_dump_json(),
+            "headline": headline or profile.headline or "",
+            "current_summary": current_summary or "(empty)",
+        }
+    )
+
+    parsed = parse_llm_json(response.content)
+    summary = str(parsed.get("summary") or "").strip()
+    if not summary:
+        summary = (current_summary or profile.summary or "").strip()
+    return summary
 
 
 def _build_tailored_cv(parsed: dict, profile: Profile, *, language: str = "en") -> TailoredCV:

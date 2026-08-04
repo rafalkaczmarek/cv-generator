@@ -151,3 +151,57 @@ def test_tailor_cv_sets_language_and_present_label(
     )
     assert cv_pl.language == "pl"
     assert cv_pl.experiences[0].date_range.endswith("obecnie")
+
+
+def test_rewrite_summary_returns_new_text(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_profile,
+    sample_job,
+    sample_gap,
+) -> None:
+    payload = '{"summary": "Alternative summary tailored to FastAPI roles."}'
+    monkeypatch.setattr(tailor, "get_json_llm", lambda: FakeLLM(payload))
+    summary = tailor.rewrite_summary(
+        profile=sample_profile,
+        job=sample_job,
+        gap=sample_gap,
+        current_summary="Old summary.",
+        headline="Senior Python Engineer",
+        language="en",
+    )
+    assert summary == "Alternative summary tailored to FastAPI roles."
+
+
+def test_rewrite_summary_falls_back_to_current_when_empty(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_profile,
+    sample_job,
+    sample_gap,
+) -> None:
+    monkeypatch.setattr(tailor, "get_json_llm", lambda: FakeLLM('{"summary": ""}'))
+    summary = tailor.rewrite_summary(
+        profile=sample_profile,
+        job=sample_job,
+        gap=sample_gap,
+        current_summary="Keep me.",
+    )
+    assert summary == "Keep me."
+
+
+def test_rewrite_summary_uses_plain_llm_for_anthropic(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_profile,
+    sample_job,
+    sample_gap,
+) -> None:
+    payload = '{"summary": "Anthropic rewrite."}'
+    llm_stub = FakeLLM(payload)
+    monkeypatch.setattr(tailor, "_supports_json_mode", lambda: False)
+    monkeypatch.setattr(tailor, "get_llm", lambda: llm_stub)
+    summary = tailor.rewrite_summary(
+        profile=sample_profile,
+        job=sample_job,
+        gap=sample_gap,
+        current_summary="Old.",
+    )
+    assert summary == "Anthropic rewrite."

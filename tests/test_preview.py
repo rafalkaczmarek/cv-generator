@@ -1,9 +1,9 @@
-"""Unit tests for preview-tab match-score reevaluation."""
+"""Unit tests for preview-tab match-score reevaluation and summary rewrite."""
 
 from __future__ import annotations
 
 from cv_generator.models import JobOffer, Profile, TailoredCV
-from cv_generator.ui.preview import reevaluate_match_score
+from cv_generator.ui.preview import regenerate_cv_summary, reevaluate_match_score
 
 
 def test_reevaluate_requires_profile(sample_job: JobOffer, sample_tailored_cv: TailoredCV) -> None:
@@ -96,3 +96,45 @@ def test_reevaluate_refreshes_matched_keywords(
     assert updated.match_score == 100
     assert "FastAPI" in updated.matched_keywords
     assert updated.missing_keywords == []
+
+
+def test_regenerate_summary_requires_profile(
+    sample_job: JobOffer, sample_tailored_cv: TailoredCV
+) -> None:
+    summary, error = regenerate_cv_summary(
+        profile=None, job=sample_job, cv=sample_tailored_cv
+    )
+    assert summary is None
+    assert error is not None
+    assert "profilu" in error.lower()
+
+
+def test_regenerate_summary_requires_job(
+    sample_profile: Profile, sample_tailored_cv: TailoredCV
+) -> None:
+    summary, error = regenerate_cv_summary(
+        profile=sample_profile, job=None, cv=sample_tailored_cv
+    )
+    assert summary is None
+    assert error is not None
+    assert "oferty" in error.lower()
+
+
+def test_regenerate_summary_returns_rewritten_text(
+    monkeypatch,
+    sample_profile: Profile,
+    sample_job: JobOffer,
+    sample_tailored_cv: TailoredCV,
+) -> None:
+    from cv_generator.ui import preview
+
+    monkeypatch.setattr(
+        preview,
+        "rewrite_summary",
+        lambda **_kwargs: "Fresh summary for this role.",
+    )
+    summary, error = regenerate_cv_summary(
+        profile=sample_profile, job=sample_job, cv=sample_tailored_cv
+    )
+    assert error is None
+    assert summary == "Fresh summary for this role."

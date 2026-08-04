@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import streamlit as st
 
+from cv_generator.agents.gap_analyzer import analyze_gap
+from cv_generator.agents.tailor import rewrite_summary
 from cv_generator.agents.validator import validate
 from cv_generator.models import JobOffer, Profile, TailoredCV, TailoredExperience
+from cv_generator.ui.llm import format_llm_error
 from cv_generator.ui.state import ss_get
 
 
@@ -22,6 +25,31 @@ def reevaluate_match_score(
         return None, "Brak oferty w sesji — nie można przeliczyć score."
     _, _, updated = validate(profile=profile, job=job, cv=cv)
     return updated, None
+
+
+def regenerate_cv_summary(
+    *,
+    profile: Profile | None,
+    job: JobOffer | None,
+    cv: TailoredCV,
+) -> tuple[str | None, str | None]:
+    """Rewrite only the CV summary via LLM. Returns ``(summary, error)``."""
+    if profile is None:
+        return None, "Brak profilu w sesji — nie można wygenerować podsumowania."
+    if job is None:
+        return None, "Brak oferty w sesji — nie można wygenerować podsumowania."
+    gap = analyze_gap(profile, job)
+    summary = rewrite_summary(
+        profile=profile,
+        job=job,
+        gap=gap,
+        current_summary=cv.summary,
+        headline=cv.headline,
+        language=cv.language or "en",
+    )
+    if not summary:
+        return None, "Model nie zwrócił podsumowania — spróbuj ponownie."
+    return summary, None
 
 
 def render_preview_tab() -> None:
@@ -47,9 +75,35 @@ def render_preview_tab() -> None:
         session_key = "tailored"
 
     cv.headline = st.text_input("Headline", value=cv.headline, key=f"prv_headline_{session_key}")
+
+    summary_key = f"prv_summary_{session_key}"
+    pending_regen_key = f"_pending_regen_summary_{session_key}"
+
+    if st.session_state.pop(pending_regen_key, False):
+        with st.spinner("Generuję nowe podsumowanie..."):
+            try:
+                summary, error = regenerate_cv_summary(
+                    profile=ss_get("profile"),
+                    job=ss_get("job_offer"),
+                    cv=cv,
+                )
+            except Exception as exc:  # pragma: no cover - LLM errors
+                st.error(format_llm_error(exc))
+            else:
+                if error:
+                    st.error(error)
+                else:
+                    assert summary is not None
+                    cv.summary = summary
+                    st.session_state[session_key] = cv
+                    st.session_state[summary_key] = summary
+
     cv.summary = st.text_area(
-        "Podsumowanie", value=cv.summary, height=120, key=f"prv_summary_{session_key}"
+        "Podsumowanie", value=cv.summary, height=120, key=summary_key
     )
+    if st.button("Wygeneruj inne podsumowanie", key=f"prv_regen_summary_{session_key}"):
+        st.session_state[pending_regen_key] = True
+        st.rerun()
 
     st.subheader("Doświadczenie (możesz edytować bullety przed eksportem)")
     updated_experiences: list[TailoredExperience] = []

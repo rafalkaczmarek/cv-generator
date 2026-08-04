@@ -269,6 +269,66 @@ def test_preview_reevaluate_recalculates_match_score(page: Page, streamlit_url: 
     expect(preview.get_by_text(re.compile(r"FastAPI"))).to_be_visible()
 
 
+def test_preview_regenerate_summary_rewrites_text(page: Page, streamlit_url: str) -> None:
+    goto_app(page, streamlit_url)
+    run_full_generation_flow(page)
+
+    open_tab(page, "Podgląd")
+    preview = page.get_by_role("tabpanel", name="Podgląd")
+    initial_summary = "Backend engineer with Python, FastAPI and PostgreSQL experience."
+    regenerated_summary = (
+        "Results-driven backend engineer focused on Python APIs, "
+        "FastAPI services and reliable PostgreSQL data layers."
+    )
+    expect(preview.get_by_label("Podsumowanie")).to_have_value(initial_summary)
+    expect(preview.get_by_label("Headline")).to_have_value("Senior Python Engineer")
+    expect(
+        preview.get_by_role("button", name="Wygeneruj inne podsumowanie")
+    ).to_be_visible()
+
+    preview.get_by_role("button", name="Wygeneruj inne podsumowanie").click()
+
+    preview = page.get_by_role("tabpanel", name="Podgląd")
+    expect(preview.get_by_label("Podsumowanie")).to_have_value(
+        regenerated_summary, timeout=30_000
+    )
+    expect(preview.get_by_label("Headline")).to_have_value("Senior Python Engineer")
+    expect(preview.get_by_label("Umiejętności (po przecinku)")).to_have_value(
+        "Python, FastAPI, PostgreSQL, Docker"
+    )
+
+
+def test_preview_regenerate_summary_for_polish_version(page: Page, streamlit_url: str) -> None:
+    goto_app(page, streamlit_url)
+    set_profile_in_session(page)
+    analyze_pasted_job_offer(page)
+
+    open_tab(page, "Generuj")
+    generate = page.get_by_role("tabpanel", name="Generuj")
+    generate.get_by_text("Wygeneruj też wersję polską", exact=True).click()
+    generate.get_by_role("button", name="Uruchom pipeline agentów").click()
+    expect(page.get_by_text(re.compile(r"Gotowe \(EN \+ PL\)"))).to_be_visible(
+        timeout=60_000
+    )
+
+    open_tab(page, "Podgląd")
+    preview = page.get_by_role("tabpanel", name="Podgląd")
+    preview.get_by_text("Polski", exact=True).click()
+    expect(preview.get_by_label("Podsumowanie")).to_have_value(
+        "Inżynier backendu z doświadczeniem w Python, FastAPI i PostgreSQL."
+    )
+
+    preview.get_by_role("button", name="Wygeneruj inne podsumowanie").click()
+
+    preview = page.get_by_role("tabpanel", name="Podgląd")
+    expect(preview.get_by_label("Podsumowanie")).to_have_value(
+        "Inżynier backendu nastawiony na wyniki: API w Pythonie, "
+        "usługi FastAPI oraz niezawodne warstwy danych w PostgreSQL.",
+        timeout=30_000,
+    )
+    expect(preview.get_by_label("Headline")).to_have_value("Starszy inżynier Python")
+
+
 def test_generate_tab_shows_matched_profile_and_job(page: Page, streamlit_url: str) -> None:
     goto_app(page, streamlit_url)
     set_profile_in_session(page)

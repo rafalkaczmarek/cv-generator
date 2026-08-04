@@ -64,6 +64,26 @@ _TAILORED_CV_JSON_PL = json.dumps(
     ensure_ascii=False,
 )
 
+_SUMMARY_JSON_EN = json.dumps(
+    {
+        "summary": (
+            "Results-driven backend engineer focused on Python APIs, "
+            "FastAPI services and reliable PostgreSQL data layers."
+        )
+    },
+    ensure_ascii=False,
+)
+
+_SUMMARY_JSON_PL = json.dumps(
+    {
+        "summary": (
+            "Inżynier backendu nastawiony na wyniki: API w Pythonie, "
+            "usługi FastAPI oraz niezawodne warstwy danych w PostgreSQL."
+        )
+    },
+    ensure_ascii=False,
+)
+
 
 class _StubResponse:
     def __init__(self, content: str) -> None:
@@ -93,6 +113,10 @@ class StubLLM(Runnable[Any, _StubResponse]):
         **kwargs: Any,
     ) -> _StubResponse:
         text = _inputs_as_text(inputs)
+        if "rewriting only the professional summary" in text:
+            if "Output language: pl" in text:
+                return _StubResponse(_SUMMARY_JSON_PL)
+            return _StubResponse(_SUMMARY_JSON_EN)
         if "TailoredCV JSON" in text or "tailoring an existing profile" in text:
             if "Output language: pl" in text:
                 return _StubResponse(_TAILORED_CV_JSON_PL)
