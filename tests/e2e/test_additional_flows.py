@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -232,6 +233,40 @@ def test_preview_edit_persists_before_export(page: Page, streamlit_url: str) -> 
     preview = page.get_by_role("tabpanel", name="Podgląd")
     expect(preview.get_by_label("Headline")).to_have_value("Lead Python Engineer for GammaTech")
     expect(preview.get_by_label("Podsumowanie")).to_have_value("Custom summary before export.")
+
+
+def test_preview_reevaluate_recalculates_match_score(page: Page, streamlit_url: str) -> None:
+    goto_app(page, streamlit_url)
+    run_full_generation_flow(page)
+
+    open_tab(page, "Podgląd")
+    preview = page.get_by_role("tabpanel", name="Podgląd")
+    expect(preview.get_by_text("Match score")).to_be_visible()
+    expect(preview.locator('[data-testid="stMetricValue"]')).to_have_text("100/100")
+    expect(preview.get_by_role("button", name="Reevaluate")).to_be_visible()
+
+    preview.get_by_label("Headline").fill("Engineer")
+    preview.get_by_label("Podsumowanie").fill("General backend work.")
+    preview.get_by_label("Umiejętności (po przecinku)").fill("Python")
+    preview.get_by_label("Kursy (po przecinku)").fill("")
+
+    summary = preview.locator("summary").filter(has_text="Senior Backend Engineer — Acme Corp")
+    expect(summary).to_be_visible(timeout=15_000)
+    details = summary.locator("xpath=ancestor::details[1]")
+    if details.get_attribute("open") is None:
+        summary.click()
+    expect(details).to_have_js_property("open", True, timeout=5_000)
+    experience = details.locator('[data-testid="stExpanderDetails"]')
+    experience.get_by_label("Bullety").fill("Built internal tools.")
+
+    preview.get_by_role("button", name="Reevaluate").click()
+
+    preview = page.get_by_role("tabpanel", name="Podgląd")
+    expect(preview.locator('[data-testid="stMetricValue"]')).not_to_have_text(
+        "100/100", timeout=15_000
+    )
+    expect(preview.get_by_text(re.compile(r"Brakuje:"))).to_be_visible()
+    expect(preview.get_by_text(re.compile(r"FastAPI"))).to_be_visible()
 
 
 def test_generate_tab_shows_matched_profile_and_job(page: Page, streamlit_url: str) -> None:

@@ -4,8 +4,24 @@ from __future__ import annotations
 
 import streamlit as st
 
-from cv_generator.models import TailoredCV, TailoredExperience
+from cv_generator.agents.validator import validate
+from cv_generator.models import JobOffer, Profile, TailoredCV, TailoredExperience
 from cv_generator.ui.state import ss_get
+
+
+def reevaluate_match_score(
+    *,
+    profile: Profile | None,
+    job: JobOffer | None,
+    cv: TailoredCV,
+) -> tuple[TailoredCV | None, str | None]:
+    """Recalculate match score for an edited CV. Returns ``(cv, error)``."""
+    if profile is None:
+        return None, "Brak profilu w sesji — nie można przeliczyć score."
+    if job is None:
+        return None, "Brak oferty w sesji — nie można przeliczyć score."
+    _, _, updated = validate(profile=profile, job=job, cv=cv)
+    return updated, None
 
 
 def render_preview_tab() -> None:
@@ -48,6 +64,19 @@ def render_preview_tab() -> None:
     ]
 
     st.metric("Match score", f"{cv.match_score}/100")
+    if st.button("Reevaluate", key="prv_reevaluate"):
+        updated, error = reevaluate_match_score(
+            profile=ss_get("profile"),
+            job=ss_get("job_offer"),
+            cv=cv,
+        )
+        if error:
+            st.error(error)
+        else:
+            assert updated is not None
+            st.session_state.tailored = updated
+            st.rerun()
+
     if cv.matched_keywords:
         st.success("Dopasowane: " + ", ".join(cv.matched_keywords))
     if cv.missing_keywords:
