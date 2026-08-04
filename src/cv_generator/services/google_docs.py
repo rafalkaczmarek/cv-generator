@@ -12,7 +12,7 @@ Workflow:
 
 The template is expected to contain placeholders matching `_flatten_for_docs`:
 {{full_name}}, {{headline}}, {{summary}}, {{contact_line}}, {{skills}},
-{{languages}}, {{education}}, {{experiences}}.
+{{courses}}, {{languages}}, {{education}}, {{experiences}}.
 
 For loops/conditional logic stay with `docxtpl`; Google Docs flow is intended
 for users who want a Drive-native template editing experience.
@@ -113,6 +113,7 @@ def _flatten_for_docs(cv: TailoredCV) -> dict[str, str]:
         "{{summary}}": cv.summary,
         "{{contact_line}}": contact_line,
         "{{skills}}": ", ".join(cv.skills),
+        "{{courses}}": ", ".join(cv.courses),
         "{{languages}}": ", ".join(cv.languages),
         "{{education}}": education,
         "{{experiences}}": experiences,

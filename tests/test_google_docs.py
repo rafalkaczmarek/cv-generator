@@ -12,6 +12,7 @@ def test_flatten_for_docs_contains_required_placeholders(sample_tailored_cv) -> 
     assert flat["{{full_name}}"] == sample_tailored_cv.full_name
     assert sample_tailored_cv.headline in flat["{{headline}}"]
     assert "Acme Corp" in flat["{{experiences}}"]
+    assert flat["{{courses}}"] == ", ".join(sample_tailored_cv.courses)
 
 
 def test_export_requires_template_id(monkeypatch: pytest.MonkeyPatch, sample_tailored_cv) -> None:

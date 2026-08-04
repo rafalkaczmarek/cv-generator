@@ -98,6 +98,11 @@ def _merge_list_fields(
         if skill not in merged_skills:
             merged_skills.append(skill)
 
+    merged_courses = list(existing.courses)
+    for course in incoming.courses:
+        if course not in merged_courses:
+            merged_courses.append(course)
+
     merged_languages = list(existing.languages)
     for language in incoming.languages:
         if language not in merged_languages:
@@ -107,6 +112,7 @@ def _merge_list_fields(
         "experiences": merged_experiences,
         "education": merged_education,
         "skills": merged_skills,
+        "courses": merged_courses,
         "languages": merged_languages,
     }
 

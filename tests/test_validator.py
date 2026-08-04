@@ -37,6 +37,15 @@ def test_validator_flags_invented_skills(sample_profile, sample_job, sample_tail
     assert "quantum" in feedback.lower() or "fabricated" in feedback.lower()
 
 
+def test_validator_flags_invented_courses(sample_profile, sample_job, sample_tailored_cv) -> None:
+    bad_cv = sample_tailored_cv.model_copy(
+        update={"courses": ["MadeUp Quantum Course 9000"]}
+    )
+    _, feedback, _ = validate(profile=sample_profile, job=sample_job, cv=bad_cv)
+    assert "course" in feedback.lower() or "fabricated" in feedback.lower()
+    assert "madeup" in feedback.lower() or "quantum" in feedback.lower()
+
+
 def test_validator_reports_no_issues_for_fully_covered_job(
     sample_profile, sample_job, sample_tailored_cv
 ) -> None:

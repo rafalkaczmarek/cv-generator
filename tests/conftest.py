@@ -43,6 +43,7 @@ def sample_profile() -> Profile:
         phone="+48 600 000 000",
         location="Warszawa",
         skills=["Python", "FastAPI", "PostgreSQL", "Docker", "AWS"],
+        courses=["AWS Certified Developer", "Kubernetes Fundamentals"],
         languages=["Polski - natywny", "Angielski - C1"],
         experiences=[
             Experience(
@@ -113,6 +114,7 @@ def sample_tailored_cv() -> TailoredCV:
         summary="Backend engineer with deep FastAPI and Kubernetes experience.",
         email="jan@example.com",
         skills=["Python", "FastAPI", "Kubernetes", "PostgreSQL"],
+        courses=["Kubernetes Fundamentals"],
         experiences=[
             TailoredExperience(
                 company="Acme Corp",

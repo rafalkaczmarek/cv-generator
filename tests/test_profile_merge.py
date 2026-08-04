@@ -25,6 +25,7 @@ def test_merge_fills_empty_scalars_and_keeps_existing() -> None:
         headline="Inny headline",
         location="Warszawa",
         skills=["Angular"],
+        courses=["AWS Developer"],
         languages=["Polish"],
     )
 
@@ -34,6 +35,7 @@ def test_merge_fills_empty_scalars_and_keeps_existing() -> None:
     assert merged.headline == "Mój nagłówek"
     assert merged.location == "Warszawa"
     assert merged.skills == ["Python", "Angular"]
+    assert merged.courses == ["AWS Developer"]
     assert merged.languages == ["Polish"]
 
 

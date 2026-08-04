@@ -13,6 +13,7 @@ E2E_PROFILE = {
     "headline": "Senior Python Developer",
     "email": "jan@example.com",
     "skills": "Python, FastAPI, PostgreSQL, Docker",
+    "courses": "AWS Certified Developer, Kubernetes Fundamentals",
     "experience_company": "Acme Corp",
     "experience_title": "Senior Backend Engineer",
 }
@@ -42,6 +43,7 @@ def fill_minimal_profile(page: Page) -> None:
     profile.get_by_label("Headline").fill(E2E_PROFILE["headline"])
     profile.get_by_label("Email").fill(E2E_PROFILE["email"])
     profile.get_by_label("Umiejętności (oddzielone przecinkami)").fill(E2E_PROFILE["skills"])
+    profile.get_by_label("Kursy (oddzielone przecinkami)").fill(E2E_PROFILE["courses"])
 
     profile.get_by_role("button", name="Dodaj doświadczenie").click()
     summary = profile.locator("summary").filter(has_text="#1")

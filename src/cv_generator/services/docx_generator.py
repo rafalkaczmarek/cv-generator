@@ -331,6 +331,16 @@ def _add_cv_body(
 
     _add_section_title(
         doc,
+        "Kursy",
+        accent=accent,
+        size=section_size,
+        uppercase=section_uppercase,
+        tight=tight,
+    )
+    doc.add_paragraph("{{ cv.courses | join(', ') }}")
+
+    _add_section_title(
+        doc,
         "Języki",
         accent=accent,
         size=section_size,

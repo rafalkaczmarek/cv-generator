@@ -41,6 +41,7 @@ def sync_profile_form_state(profile: Profile | None) -> None:
     )
     st.session_state.prof_summary = profile.summary or "" if profile else ""
     st.session_state.prof_skills = ", ".join(profile.skills) if profile else ""
+    st.session_state.prof_courses = ", ".join(profile.courses) if profile else ""
     st.session_state.prof_languages = ", ".join(profile.languages) if profile else ""
 
 
@@ -79,6 +80,7 @@ def profile_from_session_state() -> Profile | None:
             github_url=st.session_state.get("prof_github") or None,
             website_url=st.session_state.get("prof_website") or None,
             skills=st.session_state.get("prof_skills", ""),
+            courses=st.session_state.get("prof_courses", ""),
             languages=st.session_state.get("prof_languages", ""),
             experiences=experiences,
             education=education,

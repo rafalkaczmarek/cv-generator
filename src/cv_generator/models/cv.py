@@ -30,6 +30,7 @@ class TailoredCV(BaseModel):
     experiences: list[TailoredExperience] = Field(default_factory=list)
     education_lines: list[str] = Field(default_factory=list)
     skills: list[str] = Field(default_factory=list)
+    courses: list[str] = Field(default_factory=list)
     languages: list[str] = Field(default_factory=list)
 
     matched_keywords: list[str] = Field(default_factory=list)

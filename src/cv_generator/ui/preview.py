@@ -39,6 +39,13 @@ def render_preview_tab() -> None:
         ).split(",")
         if s.strip()
     ]
+    cv.courses = [
+        s.strip()
+        for s in st.text_area(
+            "Kursy (po przecinku)", value=", ".join(cv.courses), key="prv_courses"
+        ).split(",")
+        if s.strip()
+    ]
 
     st.metric("Match score", f"{cv.match_score}/100")
     if cv.matched_keywords:

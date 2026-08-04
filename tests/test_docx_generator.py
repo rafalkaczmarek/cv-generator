@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from docx import Document
 
 from cv_generator.services.docx_generator import (
     ensure_builtin_templates,
@@ -99,3 +100,20 @@ def test_ensure_default_template_reuses_existing(tmp_path: Path) -> None:
     second = ensure_default_template(template_dir=tmp_path)
     assert second == first
     assert second.read_bytes() == b"custom-template"
+
+
+def test_render_cv_includes_courses_section(sample_tailored_cv, tmp_path: Path) -> None:
+    template = ensure_default_template(template_dir=tmp_path / "templates")
+    output_path = render_cv(
+        sample_tailored_cv,
+        template_path=template,
+        output_dir=tmp_path / "out",
+        filename="with_courses.docx",
+    )
+    text = "\n".join(p.text for p in Document(output_path).paragraphs)
+    assert "KURSY" in text
+    assert "Kubernetes Fundamentals" in text
+    skills_pos = text.index("UMIEJĘTNOŚCI")
+    courses_pos = text.index("KURSY")
+    languages_pos = text.index("JĘZYKI")
+    assert skills_pos < courses_pos < languages_pos

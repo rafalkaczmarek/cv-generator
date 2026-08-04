@@ -29,6 +29,7 @@ def _profile_tokens(profile: Profile) -> set[str]:
         if exp.summary:
             tokens.add(_norm(exp.summary))
     tokens.update(_norm(s) for s in profile.skills)
+    tokens.update(_norm(c) for c in profile.courses)
     if profile.summary:
         tokens.add(_norm(profile.summary))
     if profile.headline:
@@ -56,6 +57,7 @@ def validate(*, profile: Profile, job: JobOffer, cv: TailoredCV) -> tuple[int, s
         cv_text_pool.add(_norm(exp.title))
         cv_text_pool.update(_norm(b) for b in exp.bullets)
     cv_text_pool.update(_norm(s) for s in cv.skills)
+    cv_text_pool.update(_norm(c) for c in cv.courses)
     cv_text_pool.discard("")
 
     job_signals = list(dict.fromkeys(job.keywords + job.requirements))
@@ -73,6 +75,9 @@ def validate(*, profile: Profile, job: JobOffer, cv: TailoredCV) -> tuple[int, s
     for skill in cv.skills:
         if not _contains(skill, profile_pool):
             hallucinations.append(f"skill '{skill}'")
+    for course in cv.courses:
+        if not _contains(course, profile_pool):
+            hallucinations.append(f"course '{course}'")
 
     if hallucinations:
         score = max(0, score - 25)

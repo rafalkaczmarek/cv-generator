@@ -15,9 +15,19 @@ def test_profile_normalizes_comma_separated_skills() -> None:
     assert profile.skills == ["python", "fastapi", "docker"]
 
 
+def test_profile_normalizes_comma_separated_courses() -> None:
+    profile = Profile(full_name="X", courses="AWS Developer,  Docker Deep Dive ")
+    assert profile.courses == ["AWS Developer", "Docker Deep Dive"]
+
+
 def test_profile_normalizes_none_skills() -> None:
     profile = Profile(full_name="X", skills=None)
     assert profile.skills == []
+
+
+def test_profile_normalizes_none_courses() -> None:
+    profile = Profile(full_name="X", courses=None)
+    assert profile.courses == []
 
 
 def test_experience_normalizes_newline_bullets() -> None:

@@ -17,6 +17,7 @@ def fake_tailor_llm(monkeypatch: pytest.MonkeyPatch) -> FakeLLM:
         '"experiences": [{"company": "Acme Corp", "title": "Senior Backend Engineer", '
         '"date_range": "01/2021 - obecnie", "bullets": ["Built FastAPI services."]}], '
         '"skills": ["Python", "FastAPI", "Kubernetes"], '
+        '"courses": ["Kubernetes Fundamentals"], '
         '"languages": ["Polski - natywny"], '
         '"education_lines": ["mgr inż. - Informatyka - Politechnika Warszawska"]}'
     )
@@ -36,6 +37,7 @@ def test_tailor_cv_builds_from_llm_json(
     assert cv.headline == "Senior Python Engineer"
     assert cv.full_name == sample_profile.full_name
     assert "FastAPI" in cv.skills
+    assert "Kubernetes Fundamentals" in cv.courses
     assert cv.experiences[0].company == "Acme Corp"
 
 
@@ -107,10 +109,24 @@ def test_tailor_cv_normalizes_string_list_fields(
 ) -> None:
     payload = (
         '{"headline": "Dev", "summary": "Summary.", "experiences": [], '
-        '"skills": "Python, FastAPI", "languages": "Polski", "education_lines": "Uni"}'
+        '"skills": "Python, FastAPI", "courses": "AWS Dev", '
+        '"languages": "Polski", "education_lines": "Uni"}'
     )
     monkeypatch.setattr(tailor, "get_json_llm", lambda: FakeLLM(payload))
     cv = tailor.tailor_cv(profile=sample_profile, job=sample_job, gap=sample_gap)
     assert cv.skills == ["Python, FastAPI"]
+    assert cv.courses == ["AWS Dev"]
     assert cv.languages == ["Polski"]
     assert cv.education_lines == ["Uni"]
+
+
+def test_tailor_cv_falls_back_to_profile_courses(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_profile,
+    sample_job,
+    sample_gap,
+) -> None:
+    payload = '{"headline": "Dev", "summary": "Summary.", "experiences": [], "skills": ["Python"]}'
+    monkeypatch.setattr(tailor, "get_json_llm", lambda: FakeLLM(payload))
+    cv = tailor.tailor_cv(profile=sample_profile, job=sample_job, gap=sample_gap)
+    assert cv.courses == sample_profile.courses

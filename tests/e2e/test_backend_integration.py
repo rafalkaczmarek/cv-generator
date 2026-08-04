@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from docx import Document
 
 from cv_generator.agents.job_analyzer import analyze_job
 from cv_generator.agents.validator import validate
@@ -41,6 +42,7 @@ def e2e_profile() -> Profile:
             "headline": "Senior Python Developer",
             "email": "jan@example.com",
             "skills": ["Python", "FastAPI", "PostgreSQL", "Docker"],
+            "courses": ["AWS Certified Developer", "Kubernetes Fundamentals"],
             "experiences": [
                 {
                     "company": "Acme Corp",
@@ -77,6 +79,7 @@ def test_stub_llm_job_analysis_and_pipeline(
     assert cv.headline == "Senior Python Engineer"
     assert cv.match_score >= 70
     assert any(exp.company == "Acme Corp" for exp in cv.experiences)
+    assert "AWS Certified Developer" in cv.courses
 
 
 def test_analyze_job_requires_input(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -127,6 +130,9 @@ def test_stub_llm_export_roundtrip(
     path = render_cv(cv, template_id="cv_compact.docx", filename="cv_e2e.docx")
     assert path.exists()
     assert path.stat().st_size > 0
+    text = "\n".join(p.text for p in Document(path).paragraphs)
+    assert "KURSY" in text
+    assert "AWS Certified Developer" in text
 
     modern = render_cv(cv, template_id="cv_modern.docx", filename="cv_e2e_modern.docx")
     assert modern.exists() and modern.stat().st_size > 0

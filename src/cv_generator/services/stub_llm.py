@@ -37,6 +37,7 @@ _TAILORED_CV_JSON = json.dumps(
             }
         ],
         "skills": ["Python", "FastAPI", "PostgreSQL", "Docker"],
+        "courses": ["AWS Certified Developer"],
         "languages": ["Polski - natywny"],
         "education_lines": ["mgr inż. - Informatyka - Politechnika Warszawska"],
     },

@@ -44,6 +44,9 @@ def profile_form_inputs(profile: Profile | None) -> dict[str, Any]:
     skills = st.text_area(
         "Umiejętności (oddzielone przecinkami)", height=80, key="prof_skills"
     )
+    courses = st.text_area(
+        "Kursy (oddzielone przecinkami)", height=60, key="prof_courses"
+    )
     languages = st.text_area(
         "Języki (oddzielone przecinkami, np. 'Polski - natywny, Angielski - C1')",
         height=60,
@@ -61,6 +64,7 @@ def profile_form_inputs(profile: Profile | None) -> dict[str, Any]:
         "website_url": website_url or None,
         "summary": summary or None,
         "skills": skills,
+        "courses": courses,
         "languages": languages,
     }
 

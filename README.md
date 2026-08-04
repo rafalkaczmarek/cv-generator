@@ -125,7 +125,7 @@ Własny szablon: wrzuć plik `.docx` do `templates/` — pojawi się na liście.
 
 - `{{ cv.full_name }}`, `{{ cv.headline }}`, `{{ cv.summary }}`
 - `{%p for exp in cv.experiences %}` ... `{%p endfor %}`
-- `{{ cv.skills | join(', ') }}`, `{{ cv.languages | join(', ') }}`
+- `{{ cv.skills | join(', ') }}`, `{{ cv.courses | join(', ') }}`, `{{ cv.languages | join(', ') }}`
 - `{%p for line in cv.education_lines %}`
 
 ## Google Docs (opcjonalne)

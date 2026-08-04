@@ -28,6 +28,8 @@ def test_profile_tab_is_active_by_default(page: Page, streamlit_url: str) -> Non
     page.goto(streamlit_url)
     expect(page.get_by_role("tab", name="Profil")).to_have_attribute("aria-selected", "true")
     expect(page.get_by_role("heading", name=TAB_HEADERS["Profil"])).to_be_visible()
+    profile = page.get_by_role("tabpanel", name="Profil")
+    expect(profile.get_by_label("Kursy (oddzielone przecinkami)")).to_be_visible()
 
 
 @pytest.mark.parametrize("tab_name", list(TAB_HEADERS))

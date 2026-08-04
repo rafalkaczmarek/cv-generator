@@ -56,9 +56,10 @@ class Profile(BaseModel):
     experiences: list[Experience] = Field(default_factory=list)
     education: list[Education] = Field(default_factory=list)
     skills: list[str] = Field(default_factory=list)
+    courses: list[str] = Field(default_factory=list)
     languages: list[str] = Field(default_factory=list)
 
-    @field_validator("skills", "languages", mode="before")
+    @field_validator("skills", "courses", "languages", mode="before")
     @classmethod
     def _normalize_list(cls, v: object) -> list[str]:
         if v is None:
