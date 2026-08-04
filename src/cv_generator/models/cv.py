@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
+
+# Placeholder company for LinkedIn/CSV projects (not a real employer).
+_PROJECT_COMPANY_PLACEHOLDERS = frozenset({"projekt", "project"})
 
 
 class TailoredExperience(BaseModel):
@@ -11,6 +14,14 @@ class TailoredExperience(BaseModel):
     location: str | None = None
     date_range: str
     bullets: list[str] = Field(default_factory=list)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def heading(self) -> str:
+        """Title alone for projects; ``title — company`` for real employers."""
+        if self.company.strip().casefold() in _PROJECT_COMPANY_PLACEHOLDERS:
+            return self.title
+        return f"{self.title} — {self.company}"
 
 
 class TailoredCV(BaseModel):

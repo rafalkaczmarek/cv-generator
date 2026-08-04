@@ -321,7 +321,7 @@ def _add_cv_body(
     if tight:
         p.paragraph_format.space_before = Pt(2)
         p.paragraph_format.space_after = Pt(0)
-    r = p.add_run("{{ exp.title }} — {{ exp.company }}")
+    r = p.add_run("{{ exp.heading }}")
     r.bold = True
     meta = doc.add_paragraph(
         "{{ exp.date_range }}{% if exp.location %} | {{ exp.location }}{% endif %}"

@@ -15,6 +15,26 @@ def test_flatten_for_docs_contains_required_placeholders(sample_tailored_cv) -> 
     assert flat["{{courses}}"] == ", ".join(sample_tailored_cv.courses)
 
 
+def test_flatten_for_docs_omits_projekt_company_suffix(sample_tailored_cv) -> None:
+    from cv_generator.models import TailoredExperience
+
+    cv = sample_tailored_cv.model_copy(
+        update={
+            "experiences": [
+                TailoredExperience(
+                    company="Projekt",
+                    title="Pekao website",
+                    date_range="01/2020 - 06/2020",
+                    bullets=["Built a marketing site."],
+                )
+            ]
+        }
+    )
+    flat = google_docs._flatten_for_docs(cv)
+    assert "Pekao website\n" in flat["{{experiences}}"]
+    assert "— Projekt" not in flat["{{experiences}}"]
+
+
 def test_export_requires_template_id(monkeypatch: pytest.MonkeyPatch, sample_tailored_cv) -> None:
     monkeypatch.delenv("GOOGLE_DRIVE_TEMPLATE_ID", raising=False)
     import cv_generator.config as cfg

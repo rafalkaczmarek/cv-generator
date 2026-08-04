@@ -102,7 +102,7 @@ def _flatten_for_docs(cv: TailoredCV) -> dict[str, str]:
     contact_line = " | ".join(p for p in contact_parts if p)
 
     experiences = "\n\n".join(
-        f"{exp.title} — {exp.company}\n{exp.date_range}\n" + "\n".join(f"• {b}" for b in exp.bullets)
+        f"{exp.heading}\n{exp.date_range}\n" + "\n".join(f"• {b}" for b in exp.bullets)
         for exp in cv.experiences
     )
     education = "\n".join(f"• {line}" for line in cv.education_lines)

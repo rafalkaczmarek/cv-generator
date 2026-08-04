@@ -54,7 +54,7 @@ def render_preview_tab() -> None:
     st.subheader("Doświadczenie (możesz edytować bullety przed eksportem)")
     updated_experiences: list[TailoredExperience] = []
     for idx, exp in enumerate(cv.experiences):
-        with st.expander(f"{exp.title} — {exp.company}", expanded=False):
+        with st.expander(exp.heading, expanded=False):
             exp.title = st.text_input(
                 "Tytuł", value=exp.title, key=f"prv_title_{session_key}_{idx}"
             )

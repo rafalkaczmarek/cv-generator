@@ -102,6 +102,41 @@ def test_ensure_default_template_reuses_existing(tmp_path: Path) -> None:
     assert second.read_bytes() == b"custom-template"
 
 
+def test_render_cv_omits_projekt_company_suffix(sample_tailored_cv, tmp_path: Path) -> None:
+    from cv_generator.models import TailoredExperience
+
+    cv = sample_tailored_cv.model_copy(
+        update={
+            "experiences": [
+                TailoredExperience(
+                    company="Projekt",
+                    title="Pekao website",
+                    date_range="01/2020 - 06/2020",
+                    bullets=["Built a marketing site."],
+                ),
+                TailoredExperience(
+                    company="Acme Corp",
+                    title="Senior Backend Engineer",
+                    date_range="01/2021 - obecnie",
+                    bullets=["Built FastAPI services."],
+                ),
+            ]
+        }
+    )
+    template = ensure_default_template(template_dir=tmp_path / "templates")
+    output_path = render_cv(
+        cv,
+        template_path=template,
+        output_dir=tmp_path / "out",
+        filename="projects.docx",
+    )
+    text = "\n".join(p.text for p in Document(output_path).paragraphs)
+    assert "Pekao website" in text
+    assert "Pekao website — Projekt" not in text
+    assert "— Projekt" not in text
+    assert "Senior Backend Engineer — Acme Corp" in text
+
+
 def test_render_cv_includes_courses_section(sample_tailored_cv, tmp_path: Path) -> None:
     template = ensure_default_template(template_dir=tmp_path / "templates")
     output_path = render_cv(
