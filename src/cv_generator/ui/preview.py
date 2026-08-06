@@ -79,6 +79,9 @@ def render_preview_tab() -> None:
     summary_key = f"prv_summary_{session_key}"
     pending_regen_key = f"_pending_regen_summary_{session_key}"
 
+    if summary_key not in st.session_state:
+        st.session_state[summary_key] = cv.summary
+
     if st.session_state.pop(pending_regen_key, False):
         with st.spinner("Generuję nowe podsumowanie..."):
             try:
@@ -98,9 +101,7 @@ def render_preview_tab() -> None:
                     st.session_state[session_key] = cv
                     st.session_state[summary_key] = summary
 
-    cv.summary = st.text_area(
-        "Podsumowanie", value=cv.summary, height=120, key=summary_key
-    )
+    cv.summary = st.text_area("Podsumowanie", height=120, key=summary_key)
     if st.button("Wygeneruj inne podsumowanie", key=f"prv_regen_summary_{session_key}"):
         st.session_state[pending_regen_key] = True
         st.rerun()
