@@ -8,15 +8,23 @@ Two responsibilities:
 
 from __future__ import annotations
 
+import re
+
 from rapidfuzz import fuzz
 
 from cv_generator.models import JobOffer, Profile, TailoredCV
 
 _FUZZ_THRESHOLD = 85
+_SHORT_SKILL_MAX_LEN = 2
+_TOKEN_RE = re.compile(r"[a-z0-9]+(?:[+#]+|[-./][a-z0-9]+)*", re.IGNORECASE)
 
 
 def _norm(value: str) -> str:
     return value.strip().lower()
+
+
+def _tech_tokens(value: str) -> list[str]:
+    return [t.lower() for t in _TOKEN_RE.findall(value)]
 
 
 def _profile_tokens(profile: Profile) -> set[str]:
@@ -41,6 +49,8 @@ def _contains(needle: str, haystack: set[str]) -> bool:
     n = _norm(needle)
     if not n:
         return False
+    if len(n) <= _SHORT_SKILL_MAX_LEN:
+        return any(n in _tech_tokens(hay) for hay in haystack)
     for hay in haystack:
         if n in hay or fuzz.partial_ratio(n, hay) >= _FUZZ_THRESHOLD:
             return True

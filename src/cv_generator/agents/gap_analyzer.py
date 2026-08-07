@@ -6,16 +6,26 @@ with the job's keywords. The output guides the Tailor agent.
 
 from __future__ import annotations
 
+import re
+
 from rapidfuzz import fuzz
 
 from cv_generator.graph.state import GapAnalysis
 from cv_generator.models import JobOffer, Profile
 
 _FUZZ_THRESHOLD = 80
+# Single-/two-letter skills (C, R, Go) must not match as letters inside other words.
+_SHORT_SKILL_MAX_LEN = 2
+# Keep compounds like C++, C#, Objective-C, Node.js, CI/CD as single tokens.
+_TOKEN_RE = re.compile(r"[a-z0-9]+(?:[+#]+|[-./][a-z0-9]+)*", re.IGNORECASE)
 
 
 def _normalize(value: str) -> str:
     return value.strip().lower()
+
+
+def _tokens(value: str) -> list[str]:
+    return [t.lower() for t in _TOKEN_RE.findall(value)]
 
 
 def _profile_skill_pool(profile: Profile) -> list[str]:
@@ -32,6 +42,8 @@ def _matches(needle: str, haystack: list[str]) -> bool:
     n = _normalize(needle)
     if not n:
         return False
+    if len(n) <= _SHORT_SKILL_MAX_LEN:
+        return any(n in _tokens(hay) for hay in haystack)
     for hay in haystack:
         if n in hay:
             return True

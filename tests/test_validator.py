@@ -37,6 +37,15 @@ def test_validator_flags_invented_skills(sample_profile, sample_job, sample_tail
     assert "quantum" in feedback.lower() or "fabricated" in feedback.lower()
 
 
+def test_validator_flags_invented_short_skill_c(
+    sample_profile, sample_job, sample_tailored_cv
+) -> None:
+    """'C' must not be accepted just because profile text contains the letter c."""
+    bad_cv = sample_tailored_cv.model_copy(update={"skills": ["Python", "C"]})
+    _, feedback, _ = validate(profile=sample_profile, job=sample_job, cv=bad_cv)
+    assert "skill 'c'" in feedback.lower() or "fabricated" in feedback.lower()
+
+
 def test_validator_flags_invented_courses(sample_profile, sample_job, sample_tailored_cv) -> None:
     bad_cv = sample_tailored_cv.model_copy(
         update={"courses": ["MadeUp Quantum Course 9000"]}

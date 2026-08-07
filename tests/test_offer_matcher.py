@@ -46,6 +46,16 @@ def test_score_offer_returns_zero_for_offer_without_skills(sample_profile) -> No
     assert result.match_score == 0
 
 
+def test_score_offer_does_not_mark_c_when_profile_only_has_words_containing_c(
+    sample_profile,
+) -> None:
+    """Regression: Embedded C offers must not get ✅ C from Docker/React/etc."""
+    offer = _offer(title="Embedded C Developer", skills=["C", "Linux", "Embedded"])
+    result = score_offer(sample_profile, offer)
+    assert "C" not in result.matched
+    assert "C" in result.missing
+
+
 def test_score_offers_filters_below_threshold(sample_profile) -> None:
     good = _offer(external_id="good", skills=["Python", "FastAPI"])
     bad = _offer(external_id="bad", skills=["Rust", "Elixir", "Haskell"])
