@@ -1,8 +1,8 @@
-"""Just Join IT client — uses the public JSON API.
+"""Just Join IT client — uses the public candidate-api JSON endpoint.
 
-Endpoint: ``GET https://justjoin.it/api/offers/v2``. When that endpoint is
-unavailable we fall back to the legacy ``/api/offers``. Both return a list of
-listings with a stable ``id`` we use as the external identifier.
+Endpoint: ``GET https://justjoin.it/api/candidate-api/offers`` with cursor
+pagination (``from`` / ``itemsCount``). The legacy ``/api/offers`` routes
+return 404.
 """
 
 from __future__ import annotations
@@ -19,10 +19,9 @@ from cv_generator.services.boards.base import (
     build_http_client,
 )
 
-_ENDPOINTS = (
-    "https://api.justjoin.it/v2/user-panel/offers",
-    "https://justjoin.it/api/offers",
-)
+_API_URL = "https://justjoin.it/api/candidate-api/offers"
+_PAGE_SIZE = 100
+_MAX_PAGES = 20
 _OFFER_URL_TEMPLATE = "https://justjoin.it/job-offer/{id}"
 
 
@@ -33,7 +32,7 @@ class JustJoinClient:
         self._client = client
 
     def fetch_offers(self, *, query: BoardQuery) -> list[BoardOffer]:
-        raw = self._fetch_raw()
+        raw = self._fetch_raw(query=query)
         offers = [self._parse_offer(item) for item in raw]
         offers = [o for o in offers if o is not None]
         if query.keywords:
@@ -45,28 +44,50 @@ class JustJoinClient:
             offers = [o for o in offers if _is_remote(o)]
         return offers[: query.limit_per_board]
 
-    def _fetch_raw(self) -> list[dict[str, Any]]:
+    def _fetch_raw(self, *, query: BoardQuery) -> list[dict[str, Any]]:
         client = self._client or build_http_client()
         owns_client = self._client is None
         try:
-            last_error: Exception | None = None
-            for url in _ENDPOINTS:
-                try:
-                    response = client.get(url)
+            collected: list[dict[str, Any]] = []
+            cursor = 0
+            # Fetch a bit more than the limit so client-side filters still yield enough.
+            target = max(query.limit_per_board * 2, query.limit_per_board)
+            try:
+                for _ in range(_MAX_PAGES):
+                    response = client.get(
+                        _API_URL,
+                        params={
+                            "from": cursor,
+                            "itemsCount": _PAGE_SIZE,
+                            "cityRadius": 30,
+                            "currency": "pln",
+                            "orderBy": "descending",
+                            "sortBy": "publishedAt",
+                            "keywordType": "any",
+                        },
+                    )
                     response.raise_for_status()
                     payload = response.json()
-                    return _flatten_payload(payload)
-                except httpx.HTTPError as exc:
-                    last_error = exc
-                    continue
-            raise BoardClientError(f"Just Join IT API unreachable: {last_error}")
+                    items = _flatten_payload(payload)
+                    if not items:
+                        break
+                    collected.extend(items)
+                    if len(collected) >= target:
+                        break
+                    next_cursor = _next_cursor(payload)
+                    if next_cursor is None:
+                        break
+                    cursor = next_cursor
+            except httpx.HTTPError as exc:
+                raise BoardClientError(f"Just Join IT API unreachable: {exc}") from exc
+            return collected
         finally:
             if owns_client:
                 client.close()
 
     @staticmethod
     def _parse_offer(item: dict[str, Any]) -> BoardOffer | None:
-        offer_id = item.get("id") or item.get("slug")
+        offer_id = item.get("slug") or item.get("guid") or item.get("id")
         if not offer_id:
             return None
         slug = item.get("slug") or offer_id
@@ -78,6 +99,7 @@ class JustJoinClient:
             item.get("publishedAt")
             or item.get("published_at")
             or item.get("newestPublishedAt")
+            or item.get("lastPublishedAt")
         )
 
         return BoardOffer(
@@ -97,6 +119,24 @@ class JustJoinClient:
             is_active=True,
             last_seen_at=datetime.now(UTC),
         )
+
+
+def _next_cursor(payload: Any) -> int | None:
+    if not isinstance(payload, dict):
+        return None
+    meta = payload.get("meta")
+    if not isinstance(meta, dict):
+        return None
+    nxt = meta.get("next")
+    if not isinstance(nxt, dict):
+        return None
+    cursor = nxt.get("cursor")
+    if cursor is None:
+        return None
+    try:
+        return int(cursor)
+    except (TypeError, ValueError):
+        return None
 
 
 def _flatten_payload(payload: Any) -> list[dict[str, Any]]:
@@ -132,7 +172,11 @@ def _extract_location(item: dict[str, Any]) -> str | None:
     city = item.get("city")
     if isinstance(city, str) and city.strip():
         return city.strip()
-    multi = item.get("multilocation") or item.get("multiLocation")
+    multi = (
+        item.get("locations")
+        or item.get("multilocation")
+        or item.get("multiLocation")
+    )
     if isinstance(multi, list):
         cities = [m.get("city") for m in multi if isinstance(m, dict) and m.get("city")]
         if cities:
@@ -142,14 +186,24 @@ def _extract_location(item: dict[str, Any]) -> str | None:
 
 def _extract_salary(item: dict[str, Any]) -> str | None:
     salary = item.get("employmentTypes") or item.get("employment_types")
-    if isinstance(salary, list) and salary:
-        first = salary[0]
-        if isinstance(first, dict):
-            _from = first.get("from")
-            _to = first.get("to")
-            currency = first.get("currency", "PLN")
-            if _from or _to:
-                return f"{_from or '?'}-{_to or '?'} {currency}".strip()
+    if not isinstance(salary, list) or not salary:
+        return None
+    # Prefer PLN / original entries that actually publish a range.
+    ranked = sorted(
+        (entry for entry in salary if isinstance(entry, dict)),
+        key=lambda e: (
+            0 if (e.get("from") is not None or e.get("to") is not None) else 1,
+            0 if str(e.get("currency", "")).upper() == "PLN" else 1,
+            0 if e.get("currencySource") == "original" else 1,
+        ),
+    )
+    for entry in ranked:
+        _from = entry.get("from")
+        _to = entry.get("to")
+        if _from is None and _to is None:
+            continue
+        currency = entry.get("currency", "PLN")
+        return f"{_from or '?'}-{_to or '?'} {currency}".strip()
     return None
 
 
@@ -164,22 +218,32 @@ def _parse_datetime(value: Any) -> datetime | None:
         return None
 
 
+def _location_list(raw: dict[str, Any]) -> list[Any]:
+    multi = raw.get("locations") or raw.get("multilocation") or raw.get("multiLocation")
+    return multi if isinstance(multi, list) else []
+
+
 def _location_matches(offer: BoardOffer, city: str) -> bool:
     location = (offer.location or "").lower()
     if city in location:
         return True
     raw = offer.raw_payload or {}
-    multi = raw.get("multilocation") or raw.get("multiLocation") or []
-    if isinstance(multi, list):
-        return any(city in str(m.get("city", "")).lower() for m in multi if isinstance(m, dict))
-    return False
+    return any(
+        city in str(m.get("city", "")).lower()
+        for m in _location_list(raw)
+        if isinstance(m, dict)
+    )
 
 
 def _is_remote(offer: BoardOffer) -> bool:
     if (offer.workplace_type or "").lower() == "remote":
         return True
     raw = offer.raw_payload or {}
-    return bool(raw.get("remoteInterview") or raw.get("remote"))
+    return bool(
+        raw.get("remoteInterview")
+        or raw.get("isRemoteInterview")
+        or raw.get("remote")
+    )
 
 
 def _filter_by_keywords(offers: list[BoardOffer], keywords: list[str]) -> list[BoardOffer]:

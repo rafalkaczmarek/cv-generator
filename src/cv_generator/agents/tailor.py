@@ -22,7 +22,11 @@ _SYSTEM = (
     "2. Mirror the job's vocabulary where the profile honestly supports it.\n"
     "3. Keep bullets concrete and outcome-oriented; start with a strong verb.\n"
     "4. Keep summary to 2-4 sentences. Bullets max 1-2 lines each.\n"
-    "5. Output language: {language}.\n"
+    "5. Include EVERY experience entry from the profile in experiences — jobs and "
+    "projects alike. Do not omit, merge, or drop any. You may reorder by relevance "
+    "and rewrite bullets, but the count and identity (company + title + dates) of "
+    "each entry must be preserved.\n"
+    "6. Output language: {language}.\n"
     "Reply with valid JSON only."
 )
 
@@ -36,7 +40,8 @@ _USER = (
     "Previous reviewer feedback (may be empty): {feedback}\n\n"
     "Produce a TailoredCV JSON with the following fields: "
     "headline, summary, experiences (list of objects with company, title, "
-    "location, date_range, bullets), education_lines (list of strings), "
+    "location, date_range, bullets — one object per profile experience, none "
+    "omitted), education_lines (list of strings), "
     "skills (ordered: most relevant first), courses, languages."
 )
 

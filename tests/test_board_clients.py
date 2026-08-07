@@ -32,32 +32,48 @@ def _client_with(handler) -> httpx.Client:
 
 
 def test_justjoin_client_parses_public_api_payload() -> None:
-    payload = [
-        {
-            "id": "abc-1",
-            "slug": "abc-1",
-            "title": "Senior Python Developer",
-            "companyName": "GammaTech",
-            "city": "Warszawa",
-            "publishedAt": "2026-02-01T10:00:00Z",
-            "workplaceType": "remote",
-            "experienceLevel": "senior",
-            "requiredSkills": [{"name": "Python"}, {"name": "FastAPI"}],
-            "employmentTypes": [
-                {"from": 20000, "to": 25000, "currency": "PLN"}
-            ],
-        },
-        {
-            "id": "abc-2",
-            "title": "Junior React Dev",
-            "companyName": "FE Corp",
-            "city": "Kraków",
-            "publishedAt": "2026-01-15T09:00:00Z",
-            "requiredSkills": [{"name": "React"}, {"name": "TypeScript"}],
-        },
-    ]
+    payload = {
+        "data": [
+            {
+                "guid": "g-1",
+                "slug": "abc-1",
+                "title": "Senior Python Developer",
+                "companyName": "GammaTech",
+                "city": "Warszawa",
+                "publishedAt": "2026-02-01T10:00:00Z",
+                "workplaceType": "remote",
+                "experienceLevel": "senior",
+                "requiredSkills": [{"name": "Python"}, {"name": "FastAPI"}],
+                "employmentTypes": [
+                    {
+                        "from": None,
+                        "to": None,
+                        "currency": "EUR",
+                        "currencySource": "conversion",
+                    },
+                    {
+                        "from": 20000,
+                        "to": 25000,
+                        "currency": "PLN",
+                        "currencySource": "original",
+                    },
+                ],
+            },
+            {
+                "guid": "g-2",
+                "slug": "abc-2",
+                "title": "Junior React Dev",
+                "companyName": "FE Corp",
+                "city": "Kraków",
+                "publishedAt": "2026-01-15T09:00:00Z",
+                "requiredSkills": [{"name": "React"}, {"name": "TypeScript"}],
+            },
+        ],
+        "meta": {"next": {"cursor": None}},
+    }
 
     def handler(request: httpx.Request) -> httpx.Response:
+        assert "/api/candidate-api/offers" in str(request.url)
         return httpx.Response(200, json=payload)
 
     client = JustJoinClient(client=_client_with(handler))
@@ -69,12 +85,16 @@ def test_justjoin_client_parses_public_api_payload() -> None:
     assert offer.external_id == "abc-1"
     assert offer.company == "GammaTech"
     assert "Python" in offer.skills
+    assert offer.salary_text == "20000-25000 PLN"
     assert offer.published_at is not None
     assert offer.url.host == "justjoin.it"
 
 
 def test_justjoin_client_handles_wrapped_payload() -> None:
-    payload = {"data": [{"id": "x", "title": "Dev", "requiredSkills": []}]}
+    payload = {
+        "data": [{"slug": "x", "title": "Dev", "requiredSkills": []}],
+        "meta": {"next": {"cursor": None}},
+    }
 
     client = JustJoinClient(
         client=_client_with(lambda req: httpx.Response(200, json=payload))
@@ -84,18 +104,31 @@ def test_justjoin_client_handles_wrapped_payload() -> None:
     assert offers[0].external_id == "x"
 
 
-def test_justjoin_client_falls_back_to_second_endpoint() -> None:
+def test_justjoin_client_paginates_candidate_api() -> None:
     calls: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(str(request.url))
-        if len(calls) == 1:
-            return httpx.Response(500, text="down")
-        return httpx.Response(200, json=[{"id": "1", "title": "Dev", "requiredSkills": []}])
+        from_param = request.url.params.get("from", "0")
+        if from_param == "0":
+            return httpx.Response(
+                200,
+                json={
+                    "data": [{"slug": "1", "title": "Dev A", "requiredSkills": []}],
+                    "meta": {"next": {"cursor": 1, "itemsCount": 1}},
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "data": [{"slug": "2", "title": "Dev B", "requiredSkills": []}],
+                "meta": {"next": {"cursor": None}},
+            },
+        )
 
     client = JustJoinClient(client=_client_with(handler))
-    offers = client.fetch_offers(query=BoardQuery())
-    assert offers and offers[0].external_id == "1"
+    offers = client.fetch_offers(query=BoardQuery(limit_per_board=2))
+    assert [o.external_id for o in offers] == ["1", "2"]
     assert len(calls) == 2
 
 
