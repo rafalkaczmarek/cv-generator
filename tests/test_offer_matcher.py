@@ -55,11 +55,40 @@ def test_score_offers_filters_below_threshold(sample_profile) -> None:
     assert "bad" not in keys
 
 
-def test_score_offers_keeps_offers_without_skills(sample_profile) -> None:
-    """We can't score empty offers — surface them so the user can decide."""
+def test_score_offers_filters_offers_without_skills(sample_profile) -> None:
+    """Empty-skill offers score 0% and must not bypass the min-score filter."""
     orphan = _offer(external_id="orphan", skills=[])
     results = score_offers(sample_profile, [orphan], min_score=90)
-    assert [r.offer.external_id for r in results] == ["orphan"]
+    assert results == []
+
+
+def test_score_offers_filters_zero_score_unmatched_skills(sample_profile) -> None:
+    """Offers whose skills none match the profile score 0% and are dropped."""
+    zero = _offer(external_id="zero", skills=["Erlang", "Haskell", "Cobol"])
+    assert score_offer(sample_profile, zero).match_score == 0
+    results = score_offers(sample_profile, [zero], min_score=40)
+    assert results == []
+
+
+def test_score_offers_hides_zero_percent_among_mixed_list(sample_profile) -> None:
+    good = _offer(external_id="good", skills=["Python", "FastAPI"])
+    skilless = _offer(external_id="skilless", skills=[])
+    unmatched = _offer(external_id="unmatched", skills=["Erlang", "Haskell"])
+    results = score_offers(
+        sample_profile, [good, skilless, unmatched], min_score=40
+    )
+    assert [r.offer.external_id for r in results] == ["good"]
+    assert all(r.match_score > 0 for r in results)
+
+
+def test_score_offers_keeps_zero_score_when_threshold_is_zero(sample_profile) -> None:
+    """Threshold 0 is an explicit 'show everything' opt-in, including 0%."""
+    skilless = _offer(external_id="skilless", skills=[])
+    unmatched = _offer(external_id="unmatched", skills=["Erlang"])
+    results = score_offers(sample_profile, [skilless, unmatched], min_score=0)
+    keys = {r.offer.external_id for r in results}
+    assert keys == {"skilless", "unmatched"}
+    assert all(r.match_score == 0 for r in results)
 
 
 def test_sort_results_prefers_active_then_recent_then_score(sample_profile) -> None:

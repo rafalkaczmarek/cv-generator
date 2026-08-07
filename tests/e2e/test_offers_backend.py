@@ -90,7 +90,7 @@ def _make_offer(
         url=f"https://example.com/{source.value}/{external_id}",
         title=title,
         company=company,
-        skills=skills or ["Python", "FastAPI"],
+        skills=["Python", "FastAPI"] if skills is None else skills,
         published_at=published_at or datetime(2026, 8, 1),
     )
 
@@ -230,6 +230,45 @@ def test_matcher_orders_offers_and_respects_min_score(
     assert "bad" not in keys
     assert keys[0] == "recent"
     assert keys[-1] == "old"
+
+
+def test_matcher_hides_zero_percent_and_skillless_offers(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    e2e_profile: Profile,
+) -> None:
+    """Regression: 0% offers (no skills or no overlap) must not pass the filter."""
+    _isolate(monkeypatch, tmp_path)
+
+    good = _make_offer(
+        BoardSource.JUSTJOIN,
+        "good",
+        skills=["Python", "FastAPI"],
+    )
+    skilless = _make_offer(
+        BoardSource.PRACUJ,
+        "skilless",
+        title="Mystery Role",
+        skills=[],
+    )
+    zero_match = _make_offer(
+        BoardSource.NOFLUFF,
+        "zero",
+        title="Erlang Guru",
+        skills=["Erlang", "Haskell", "Cobol"],
+    )
+
+    assert score_offer(e2e_profile, skilless).match_score == 0
+    assert score_offer(e2e_profile, zero_match).match_score == 0
+
+    results = score_offers(
+        e2e_profile,
+        [good, skilless, zero_match],
+        min_score=40,
+    )
+    keys = {r.offer.external_id for r in results}
+    assert keys == {"good"}
+    assert all(r.match_score > 0 for r in results)
 
 
 def test_top_profile_keywords_seeds_query_from_profile_skills(

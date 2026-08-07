@@ -190,6 +190,61 @@ def test_offers_tab_min_score_filter_hides_weak_matches(
     expect(offers_panel.get_by_role("heading", name="Erlang Guru")).to_have_count(0)
 
 
+def test_offers_tab_hides_zero_percent_and_skillless_offers(
+    page: Page,
+    streamlit_url: str,
+    e2e_workspace: Path,
+    clean_boards: Storage,
+) -> None:
+    """0% offers (empty skills or no overlap) must not appear on the list."""
+    _preseed_offers(
+        clean_boards,
+        [
+            _build_offer(
+                BoardSource.JUSTJOIN,
+                "keep-me",
+                title="Senior Python Engineer",
+                company="GammaTech",
+                skills=["Python", "FastAPI", "PostgreSQL"],
+                published_at=datetime(2026, 8, 5),
+            ),
+            _build_offer(
+                BoardSource.PRACUJ,
+                "no-skills",
+                title="Skilless Mystery Role",
+                company="BlankCorp",
+                skills=[],
+                published_at=datetime(2026, 8, 5),
+            ),
+            _build_offer(
+                BoardSource.NOFLUFF,
+                "zero-overlap",
+                title="Cobol Mainframe Expert",
+                company="LegacySoft",
+                skills=["Cobol", "Fortran", "Ada"],
+                published_at=datetime(2026, 8, 5),
+            ),
+        ],
+    )
+
+    goto_app(page, streamlit_url)
+    set_profile_in_session(page)
+    open_tab(page, "Oferty")
+    offers_panel = page.get_by_role("tabpanel", name="Oferty")
+
+    expect(offers_panel.get_by_role("heading", name="Senior Python Engineer")).to_be_visible(
+        timeout=15_000
+    )
+    expect(offers_panel.get_by_role("heading", name="Skilless Mystery Role")).to_have_count(0)
+    expect(offers_panel.get_by_role("heading", name="Cobol Mainframe Expert")).to_have_count(0)
+    expect(offers_panel.get_by_text("BlankCorp", exact=False)).to_have_count(0)
+    expect(offers_panel.get_by_text("LegacySoft", exact=False)).to_have_count(0)
+
+    metrics = offers_panel.locator('[data-testid="stMetricValue"]')
+    expect(metrics).to_have_count(1)
+    expect(metrics.first).not_to_have_text("0%")
+
+
 def test_offers_tab_shows_and_toggles_inactive_offers(
     page: Page,
     streamlit_url: str,

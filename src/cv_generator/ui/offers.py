@@ -44,7 +44,7 @@ def render_offers_tab() -> None:
             max_value=100,
             value=int(settings.min_board_match_score),
             step=5,
-            help="Oferty poniżej progu są ukrywane (poza tymi bez zadeklarowanych skills).",
+            help="Oferty poniżej progu (w tym z oceną 0%) są ukrywane.",
             key="offers_min_score",
         )
         show_inactive = st.checkbox(

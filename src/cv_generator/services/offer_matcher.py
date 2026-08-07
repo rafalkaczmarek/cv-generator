@@ -51,16 +51,14 @@ def score_offers(
 ) -> list[MatchResult]:
     """Score every offer and drop those below the configured threshold.
 
-    Offers with no declared skills (``requirements`` and ``keywords`` empty)
-    are returned with a neutral 0 score and pass the filter — they cannot be
-    scored, so we surface them for the user to decide.
+    Offers with no declared skills score 0 and are filtered out whenever the
+    threshold is greater than 0.
     """
     threshold = min_score if min_score is not None else get_settings().min_board_match_score
     results: list[MatchResult] = []
     for offer in offers:
         result = score_offer(profile, offer)
-        has_signals = bool(_offer_keywords(offer))
-        if not has_signals or result.match_score >= threshold:
+        if result.match_score >= threshold:
             results.append(result)
     return results
 
