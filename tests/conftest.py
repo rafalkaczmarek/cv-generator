@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from datetime import date
 from pathlib import Path
 
@@ -23,14 +22,16 @@ from cv_generator.models import (
 def _isolate_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Redirect all data/output/templates dirs to a per-test tmpdir.
 
-    Also resets the cached settings singleton so each test gets fresh paths.
+    Sets ``CV_GENERATOR_IGNORE_ENV_FILE=1`` so :func:`get_settings` doesn't
+    reload the project's ``.env`` (which would clobber the paths below via
+    ``load_dotenv(override=True)`` and break DB isolation between tests).
     """
     monkeypatch.setenv("APP_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("APP_OUTPUT_DIR", str(tmp_path / "output"))
     monkeypatch.setenv("APP_TEMPLATES_DIR", str(tmp_path / "templates"))
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    monkeypatch.delenv("CV_GENERATOR_IGNORE_ENV_FILE", raising=False)
+    monkeypatch.setenv("CV_GENERATOR_IGNORE_ENV_FILE", "1")
 
 
 @pytest.fixture

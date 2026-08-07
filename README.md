@@ -7,6 +7,11 @@ Lokalna aplikacja, która na podstawie Twojego profilu i wymagań konkretnej ofe
 - Formularz profilu z importem z publicznego URL LinkedIn (dane schema.org ze strony profilu).
 - Import danych z oficjalnego eksportu LinkedIn (archiwum ZIP lub pojedynczy plik CSV).
 - Pobieranie i analiza oferty pracy z URL lub wklejonego tekstu.
+- **Zakładka Oferty (PL)** — automatyczne pobieranie ofert z Just Join IT,
+  No Fluff Jobs, Bulldogjob, pracuj.pl i The Protocol, dopasowanie do
+  wczytanego profilu (score bez LLM), sortowanie po dacie publikacji,
+  generowanie i ponowne pobieranie CV dla wybranej oferty; oferty
+  wycofane z portali są automatycznie wyszarzane.
 - Pipeline agentów: analiza oferty, gap analysis, dopasowanie treści, walidacja jakości.
 - Human-in-the-loop: edycja w UI przed eksportem.
 - Eksport do `.docx` z konfigurowalnego szablonu Word.
@@ -60,10 +65,33 @@ Aplikacja otworzy się w przeglądarce pod `http://localhost:8501`.
 ## Workflow
 
 1. **Profil** — wypełnij formularz ręcznie, zaimportuj z URL LinkedIn lub z eksportu LinkedIn (patrz niżej).
-2. **Oferta** — wklej URL oferty pracy lub jej treść.
-3. **Generuj** — pipeline pobiera, analizuje i przepisuje CV pod ofertę.
-4. **Podgląd** — popraw treść w razie potrzeby.
-5. **Pobierz DOCX** — gotowy plik trafia do `output/`.
+2. **Oferty** *(opcjonalnie)* — pobierz oferty z polskich portali IT i wygeneruj CV od razu dla najlepiej dopasowanej.
+3. **Oferta** — wklej URL oferty pracy lub jej treść (do jednorazowych analiz).
+4. **Generuj** — pipeline pobiera, analizuje i przepisuje CV pod ofertę.
+5. **Podgląd** — popraw treść w razie potrzeby.
+6. **Pobierz DOCX** — gotowy plik trafia do `output/`.
+
+### Zakładka Oferty (PL)
+
+Wymaga wczytanego profilu. Kliknij **Odśwież oferty** — aplikacja pobiera
+listy równolegle z Just Join IT, No Fluff Jobs, Bulldogjob, pracuj.pl i
+The Protocol, zapisuje je w bazie, ocenia dopasowanie do profilu
+(deterministycznie, bez LLM) i sortuje malejąco po dacie publikacji.
+
+Dla każdej oferty widzisz portal, tytuł, firmę, datę, pasujące i
+brakujące umiejętności oraz przycisk **Generuj CV**. Wygenerowane CV
+jest zapamiętywane per para (profil, oferta) — kolejne wejście na
+zakładkę pokaże przy tej ofercie przycisk **Pobierz CV**. Możesz
+zregenerować CV w każdej chwili.
+
+Oferty, które zniknęły z portalu przy ostatnim odświeżeniu, zostają na
+liście i są wyszarzone (przełącznik „Pokaż nieaktywne”).
+
+Konfiguracja progu w `.env` (domyślnie `40`):
+
+```env
+MIN_BOARD_MATCH_SCORE=40
+```
 
 ## Struktura
 

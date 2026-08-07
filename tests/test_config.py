@@ -10,6 +10,9 @@ from cv_generator import config as cfg
 def test_dotenv_overrides_process_env_for_llm_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Opt out of the autouse conftest that disables .env reloading, so this
+    # test can exercise the real precedence logic.
+    monkeypatch.delenv("CV_GENERATOR_IGNORE_ENV_FILE", raising=False)
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     monkeypatch.setattr(

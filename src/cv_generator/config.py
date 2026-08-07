@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     http_user_agent: str = "Mozilla/5.0 (compatible; CVGeneratorBot/0.1)"
     min_match_score: int = 70
     max_tailor_iterations: int = 2
+    min_board_match_score: int = 40
+    board_query_top_skills: int = 8
+    board_limit_per_source: int = 150
     google_credentials_path: Path = Field(default=Path("./secrets/google_credentials.json"))
     google_token_path: Path = Field(default=Path("./secrets/google_token.json"))
     google_drive_template_id: str | None = None
