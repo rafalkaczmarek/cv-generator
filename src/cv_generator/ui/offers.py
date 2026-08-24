@@ -19,6 +19,10 @@ from cv_generator.services.offer_matcher import (
     sort_results,
     top_profile_keywords,
 )
+from cv_generator.ui.google_export import (
+    document_name_for_cv,
+    render_send_to_google_docs_button,
+)
 from cv_generator.ui.llm import format_llm_error
 from cv_generator.ui.state import ss_get, storage
 
@@ -231,7 +235,7 @@ def _render_actions(profile: Profile, result: MatchResult) -> None:
         profile_name=profile.full_name, offer_key=offer.offer_key
     )
 
-    action_cols = st.columns([1, 1, 3])
+    action_cols = st.columns([1, 1, 1, 2])
     generate_key = f"offer_gen_{offer.offer_key}"
     with action_cols[0]:
         button_label = "Generuj CV" if not existing else "Generuj ponownie"
@@ -251,6 +255,9 @@ def _render_actions(profile: Profile, result: MatchResult) -> None:
         else:
             st.caption("Brak CV.")
     with action_cols[2]:
+        if existing:
+            _render_google_docs_button(existing, profile=profile, offer=offer)
+    with action_cols[3]:
         if existing:
             created = existing.get("created_at", "")
             score = existing.get("match_score", "?")
@@ -276,6 +283,25 @@ def _render_download_button(existing: dict[str, object]) -> None:
             ),
             key=f"offer_dl_{existing.get('id')}",
         )
+
+
+def _render_google_docs_button(
+    existing: dict[str, object],
+    *,
+    profile: Profile,
+    offer: BoardOffer,
+) -> None:
+    file_path = Path(str(existing.get("file_path", "")))
+    if not file_path.exists():
+        return
+    render_send_to_google_docs_button(
+        docx_path=file_path,
+        document_name=document_name_for_cv(
+            full_name=profile.full_name,
+            company=offer.company,
+        ),
+        key=f"offer_gdocs_{existing.get('id')}",
+    )
 
 
 def _generate_cv_for_offer(profile: Profile, result: MatchResult) -> None:

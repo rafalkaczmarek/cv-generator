@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Locator, Page, expect
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 E2E_PROFILE = {
@@ -117,6 +117,21 @@ def export_docx(page: Page, *, template_option: str | None = None) -> None:
     page.get_by_role("button", name="Zapisz jako DOCX").click()
     expect(page.get_by_text(re.compile(r"Zapisano"))).to_be_visible(timeout=30_000)
     expect(page.get_by_role("button", name=re.compile(r"Pobierz plik"))).to_be_visible()
+    expect(page.get_by_role("button", name="Wyślij do Google Docs")).to_be_visible()
+
+
+def send_to_google_docs(page: Page, *, scope: Page | Locator | None = None) -> None:
+    """Click ``Wyślij do Google Docs`` and expect the stubbed success UI."""
+    root: Page | Locator = scope if scope is not None else page
+    root.get_by_role("button", name="Wyślij do Google Docs").click()
+    expect(page.get_by_text("Utworzono dokument w Google Docs.")).to_be_visible(
+        timeout=30_000
+    )
+    expect(page.get_by_role("link", name="Otwórz w Google Docs")).to_be_visible()
+    expect(page.get_by_role("link", name="Otwórz w Google Docs")).to_have_attribute(
+        "href",
+        re.compile(r"https://docs\.google\.com/document/"),
+    )
 
 
 def _open_details(page: Page, summary_text: str) -> None:

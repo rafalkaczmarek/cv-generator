@@ -4,27 +4,40 @@ Requires the optional `google` extra:
 
     pip install -e .[google]
 
-Workflow:
+Primary workflow (upload generated DOCX):
 1. OAuth flow on first use, token cached at GOOGLE_TOKEN_PATH.
-2. Copy template doc (GOOGLE_DRIVE_TEMPLATE_ID) into a new file via Drive API.
-3. Replace `{{placeholders}}` via Docs API `documents.batchUpdate`.
-4. Export the resulting doc as `.docx`.
+2. Upload a local ``.docx`` via Drive API and convert it to a Google Doc.
 
-The template is expected to contain placeholders matching `_flatten_for_docs`:
+Optional template workflow (GOOGLE_DRIVE_TEMPLATE_ID):
+1. Copy template doc into a new file via Drive API.
+2. Replace ``{{placeholders}}`` via Docs API ``documents.batchUpdate``.
+
+Template placeholders match ``_flatten_for_docs``:
 {{full_name}}, {{headline}}, {{summary}}, {{contact_line}}, {{skills}},
 {{courses}}, {{languages}}, {{education}}, {{experiences}}.
-
-For loops/conditional logic stay with `docxtpl`; Google Docs flow is intended
-for users who want a Drive-native template editing experience.
 """
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cv_generator.config import get_settings
 from cv_generator.models import TailoredCV
+
+_STUB_DOC_ID = "stub-doc-id"
+_STUB_WEB_VIEW_LINK = f"https://docs.google.com/document/d/{_STUB_DOC_ID}"
+
+
+def _stub_enabled() -> bool:
+    """E2E / local harness: skip real Google APIs when ``GOOGLE_DOCS_STUB=1``."""
+    return os.environ.get("GOOGLE_DOCS_STUB", "").strip() == "1"
+
+
+def _stub_result(*, document_name: str) -> dict[str, str]:
+    _ = document_name  # kept for call-site symmetry / future stub logging
+    return {"document_id": _STUB_DOC_ID, "web_view_link": _STUB_WEB_VIEW_LINK}
 
 if TYPE_CHECKING:  # pragma: no cover - type-only imports
     from googleapiclient.discovery import Resource
@@ -36,6 +49,7 @@ _SCOPES = [
 ]
 
 _DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+_GOOGLE_DOC_MIME = "application/vnd.google-apps.document"
 
 
 class GoogleDocsUnavailable(RuntimeError):
@@ -48,7 +62,10 @@ def _require_google():
         from google.oauth2.credentials import Credentials  # noqa: F401
         from google_auth_oauthlib.flow import InstalledAppFlow  # noqa: F401
         from googleapiclient.discovery import build  # noqa: F401
-        from googleapiclient.http import MediaIoBaseDownload  # noqa: F401
+        from googleapiclient.http import (
+            MediaFileUpload,  # noqa: F401
+            MediaIoBaseDownload,  # noqa: F401
+        )
     except ImportError as exc:  # pragma: no cover - depends on optional extras
         raise GoogleDocsUnavailable(
             "Google Docs integration requires the 'google' extra. "
@@ -86,7 +103,7 @@ def _load_credentials():
     return creds
 
 
-def _services() -> tuple["Resource", "Resource"]:
+def _services() -> tuple[Resource, Resource]:
     _require_google()
     from googleapiclient.discovery import build
 
@@ -120,6 +137,35 @@ def _flatten_for_docs(cv: TailoredCV) -> dict[str, str]:
     }
 
 
+def upload_docx_to_drive(docx_path: Path, *, document_name: str) -> dict[str, str]:
+    """Upload a local ``.docx`` and convert it to a Google Doc.
+
+    Returns dict with keys: ``document_id``, ``web_view_link``.
+    """
+    path = Path(docx_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"DOCX not found: {path}")
+
+    if _stub_enabled():
+        return _stub_result(document_name=document_name)
+
+    _require_google()
+    from googleapiclient.http import MediaFileUpload
+
+    _, drive = _services()
+    metadata = {"name": document_name, "mimeType": _GOOGLE_DOC_MIME}
+    media = MediaFileUpload(str(path), mimetype=_DOCX_MIME, resumable=True)
+    created = (
+        drive.files()
+        .create(body=metadata, media_body=media, fields="id, webViewLink")
+        .execute()
+    )
+    return {
+        "document_id": str(created["id"]),
+        "web_view_link": str(created.get("webViewLink", "")),
+    }
+
+
 def export_cv_to_drive(cv: TailoredCV, *, document_name: str) -> dict[str, str]:
     """Copy template, fill placeholders, return the new doc IDs and links.
 
@@ -129,6 +175,9 @@ def export_cv_to_drive(cv: TailoredCV, *, document_name: str) -> dict[str, str]:
     template_id = settings.google_drive_template_id
     if not template_id:
         raise RuntimeError("GOOGLE_DRIVE_TEMPLATE_ID is not configured")
+
+    if _stub_enabled():
+        return _stub_result(document_name=document_name)
 
     docs, drive = _services()
 
@@ -175,6 +224,7 @@ def download_as_docx(document_id: str, target_path: Path) -> Path:
 
 __all__ = [
     "GoogleDocsUnavailable",
+    "upload_docx_to_drive",
     "export_cv_to_drive",
     "download_as_docx",
 ]

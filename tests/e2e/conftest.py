@@ -88,6 +88,7 @@ def streamlit_url(e2e_workspace: Path) -> Generator[str, None, None]:
             "APP_OUTPUT_DIR": str(e2e_workspace / "output"),
             "APP_TEMPLATES_DIR": str(e2e_workspace / "templates"),
             "LLM_PROVIDER": "stub",
+            "GOOGLE_DOCS_STUB": "1",
             "CV_GENERATOR_IGNORE_ENV_FILE": "1",
             "STREAMLIT_BROWSER_GATHER_USAGE_STATS": "false",
         }

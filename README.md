@@ -15,7 +15,7 @@ Lokalna aplikacja, która na podstawie Twojego profilu i wymagań konkretnej ofe
 - Pipeline agentów: analiza oferty, gap analysis, dopasowanie treści, walidacja jakości.
 - Human-in-the-loop: edycja w UI przed eksportem.
 - Eksport do `.docx` z konfigurowalnego szablonu Word.
-- Faza 2: integracja z Google Docs (kopiowanie szablonu + `replaceAllText` + eksport).
+- Faza 2: wysyłka wygenerowanego CV do Google Docs (upload DOCX → Drive).
 
 ## Wymagania
 
@@ -69,7 +69,7 @@ Aplikacja otworzy się w przeglądarce pod `http://localhost:8501`.
 3. **Oferta** — wklej URL oferty pracy lub jej treść (do jednorazowych analiz).
 4. **Generuj** — pipeline pobiera, analizuje i przepisuje CV pod ofertę.
 5. **Podgląd** — popraw treść w razie potrzeby.
-6. **Pobierz DOCX** — gotowy plik trafia do `output/`.
+6. **Pobierz DOCX** albo **Wyślij do Google Docs** — plik lokalny w `output/` lub dokument w Drive.
 
 ### Zakładka Oferty (PL)
 
@@ -81,7 +81,8 @@ The Protocol, zapisuje je w bazie, ocenia dopasowanie do profilu
 Dla każdej oferty widzisz portal, tytuł, firmę, datę, pasujące i
 brakujące umiejętności oraz przycisk **Generuj CV**. Wygenerowane CV
 jest zapamiętywane per para (profil, oferta) — kolejne wejście na
-zakładkę pokaże przy tej ofercie przycisk **Pobierz CV**. Możesz
+zakładkę pokaże przy tej ofercie przyciski **Pobierz CV** i
+**Wyślij do Google Docs**. Możesz
 zregenerować CV w każdej chwili.
 
 Oferty, które zniknęły z portalu przy ostatnim odświeżeniu, zostają na
@@ -162,10 +163,18 @@ Własny szablon: wrzuć plik `.docx` do `templates/` — pojawi się na liście.
 pip install -e .[google]
 ```
 
-1. Utwórz projekt w Google Cloud Console, włącz Drive API i Docs API.
-2. Pobierz OAuth credentials → zapisz jako `secrets/google_credentials.json`.
-3. Skopiuj szablon CV do Drive (placeholdery płaskie: `{{full_name}}`, `{{experiences}}`, …), ustaw `GOOGLE_DRIVE_TEMPLATE_ID` w `.env`.
-4. W zakładce Eksport → „Google Docs” → eksportuj.
+1. Utwórz projekt w Google Cloud Console i włącz **Drive API** (oraz Docs API, jeśli używasz szablonu Drive).
+2. Pobierz OAuth credentials (typ „Desktop app”) → zapisz jako `secrets/google_credentials.json`.
+3. Po wygenerowaniu CV kliknij **Wyślij do Google Docs** obok przycisku pobierania (zakładka **Oferty** lub **Eksport**). Przy pierwszym użyciu otworzy się przeglądarka z logowaniem Google; token trafi do `secrets/google_token.json`.
+
+Aplikacja wgrywa wygenerowany plik `.docx` do Drive i konwertuje go na Google Doc — działa z dowolnym szablonem Word z zakładki Eksport.
+
+### Szablon Drive (opcjonalnie)
+
+Jeśli wolisz natywny szablon Google Docs z placeholderami (`{{full_name}}`, `{{experiences}}`, …):
+
+1. Skopiuj szablon CV do Drive, ustaw `GOOGLE_DRIVE_TEMPLATE_ID` w `.env`.
+2. W zakładce Eksport → „Google Docs — szablon Drive” → wypełnij szablon.
 ## Testy
 
 Testy jednostkowe (domyślnie bez E2E):

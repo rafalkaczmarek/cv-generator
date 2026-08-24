@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import builtins
+import sys
+import types
+from pathlib import Path
 
 import pytest
 
@@ -97,3 +100,102 @@ def test_export_cv_to_drive_success(monkeypatch: pytest.MonkeyPatch, sample_tail
     assert result["document_id"] == "doc-456"
     assert "docs.google.com" in result["web_view_link"]
 
+
+def test_upload_docx_to_drive_success(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    docx = tmp_path / "cv.docx"
+    docx.write_bytes(b"PK fake-docx")
+
+    class _FakeMedia:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+    http_mod = types.ModuleType("googleapiclient.http")
+    http_mod.MediaFileUpload = _FakeMedia  # type: ignore[attr-defined]
+    parent = types.ModuleType("googleapiclient")
+    monkeypatch.setitem(sys.modules, "googleapiclient", parent)
+    monkeypatch.setitem(sys.modules, "googleapiclient.http", http_mod)
+    monkeypatch.setattr(google_docs, "_require_google", lambda: None)
+
+    class _ExecuteChain:
+        def __init__(self, result: dict) -> None:
+            self._result = result
+
+        def execute(self) -> dict:
+            return self._result
+
+    class _FakeDriveAPI:
+        def __init__(self) -> None:
+            self.last_create: dict[str, object] | None = None
+
+        def files(self) -> _FakeDriveAPI:
+            return self
+
+        def create(self, **kwargs: object) -> _ExecuteChain:
+            self.last_create = kwargs
+            return _ExecuteChain(
+                {
+                    "id": "doc-789",
+                    "webViewLink": "https://docs.google.com/document/d/doc-789",
+                }
+            )
+
+    fake_drive = _FakeDriveAPI()
+    monkeypatch.setattr(google_docs, "_services", lambda: (None, fake_drive))
+
+    result = google_docs.upload_docx_to_drive(docx, document_name="CV — Jan")
+
+    assert result["document_id"] == "doc-789"
+    assert "docs.google.com" in result["web_view_link"]
+    assert fake_drive.last_create is not None
+    body = fake_drive.last_create["body"]
+    assert isinstance(body, dict)
+    assert body["mimeType"] == "application/vnd.google-apps.document"
+    assert body["name"] == "CV — Jan"
+
+
+def test_upload_docx_to_drive_missing_file(tmp_path: Path) -> None:
+    missing = tmp_path / "missing.docx"
+    with pytest.raises(FileNotFoundError, match="DOCX not found"):
+        google_docs.upload_docx_to_drive(missing, document_name="x")
+
+
+def test_upload_docx_to_drive_stub(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    docx = tmp_path / "cv.docx"
+    docx.write_bytes(b"PK fake-docx")
+    monkeypatch.setenv("GOOGLE_DOCS_STUB", "1")
+
+    result = google_docs.upload_docx_to_drive(docx, document_name="CV — Jan")
+
+    assert result["document_id"] == "stub-doc-id"
+    assert result["web_view_link"].endswith("/stub-doc-id")
+
+
+def test_export_cv_to_drive_stub(
+    monkeypatch: pytest.MonkeyPatch, sample_tailored_cv
+) -> None:
+    class _Settings:
+        google_drive_template_id = "template-123"
+
+    monkeypatch.setenv("GOOGLE_DOCS_STUB", "1")
+    monkeypatch.setattr(google_docs, "get_settings", lambda: _Settings())
+
+    result = google_docs.export_cv_to_drive(
+        sample_tailored_cv, document_name="CV — Jan Kowalski"
+    )
+
+    assert result["document_id"] == "stub-doc-id"
+    assert "docs.google.com" in result["web_view_link"]
+
+
+def test_document_name_for_cv() -> None:
+    from cv_generator.ui.google_export import document_name_for_cv
+
+    assert document_name_for_cv(full_name="Jan Kowalski") == "CV — Jan Kowalski"
+    assert (
+        document_name_for_cv(full_name="Jan Kowalski", company="Acme")
+        == "CV — Jan Kowalski — Acme"
+    )

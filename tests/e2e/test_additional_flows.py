@@ -51,12 +51,21 @@ def test_preview_tab_requires_generated_cv(page: Page, streamlit_url: str) -> No
     expect(page.get_by_text("Najpierw uruchom generowanie w zakładce 'Generuj'.")).to_be_visible()
 
 
-def test_export_tab_shows_empty_history(page: Page, streamlit_url: str) -> None:
+def test_export_tab_shows_empty_history(
+    page: Page, streamlit_url: str, e2e_workspace: Path
+) -> None:
+    from cv_generator.services.storage import Storage
+
+    storage = Storage(db_path=e2e_workspace / "data" / "cv_generator.sqlite")
+    with storage._connect() as conn:
+        conn.execute("DELETE FROM generated_cvs")
+
     goto_app(page, streamlit_url)
     open_tab(page, "Eksport")
     expect(page.get_by_role("combobox", name="Szablon CV")).to_be_visible()
     expect(page.get_by_text("Brak wpisów.")).to_be_visible()
-    expect(page.get_by_text("Google Docs (opcjonalne)")).to_be_visible()
+    expect(page.get_by_text("Google Docs — konfiguracja")).to_be_visible()
+    expect(page.get_by_text("Google Docs — szablon Drive (opcjonalne)")).to_be_visible()
 
 
 def test_profile_invalid_email_shows_error(page: Page, streamlit_url: str) -> None:

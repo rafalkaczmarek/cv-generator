@@ -351,6 +351,7 @@ def test_offers_tab_download_button_appears_when_cv_already_exists(
         timeout=15_000
     )
     expect(offers_panel.get_by_role("button", name="Pobierz CV")).to_be_visible()
+    expect(offers_panel.get_by_role("button", name="Wyślij do Google Docs")).to_be_visible()
     expect(offers_panel.get_by_role("button", name="Generuj ponownie")).to_be_visible()
     expect(offers_panel.get_by_role("button", name="Generuj CV")).to_have_count(0)
 
