@@ -199,3 +199,69 @@ def test_document_name_for_cv() -> None:
         document_name_for_cv(full_name="Jan Kowalski", company="Acme")
         == "CV — Jan Kowalski — Acme"
     )
+
+
+def test_load_credentials_reauths_when_refresh_token_revoked(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    token_path = tmp_path / "google_token.json"
+    creds_path = tmp_path / "google_credentials.json"
+    token_path.write_text('{"refresh_token": "stale"}', encoding="utf-8")
+    creds_path.write_text("{}", encoding="utf-8")
+
+    class _Settings:
+        google_token_path = token_path
+        google_credentials_path = creds_path
+
+    class RefreshError(Exception):
+        pass
+
+    class Request:
+        pass
+
+    class _ExpiredCreds:
+        valid = False
+        expired = True
+        refresh_token = "stale"
+
+        def refresh(self, _request: object) -> None:
+            raise RefreshError(
+                "invalid_grant: Token has been expired or revoked.",
+                {"error": "invalid_grant"},
+            )
+
+    class _FreshCreds:
+        valid = True
+
+        def to_json(self) -> str:
+            return '{"access_token": "new"}'
+
+    class Credentials:
+        @staticmethod
+        def from_authorized_user_file(path: str, scopes: object) -> _ExpiredCreds:
+            assert Path(path) == token_path
+            return _ExpiredCreds()
+
+    class _Flow:
+        def run_local_server(self, *, port: int = 0) -> _FreshCreds:
+            _ = port
+            return _FreshCreds()
+
+    class InstalledAppFlow:
+        @staticmethod
+        def from_client_secrets_file(path: str, scopes: object) -> _Flow:
+            assert Path(path) == creds_path
+            return _Flow()
+
+    monkeypatch.setattr(google_docs, "get_settings", lambda: _Settings())
+    monkeypatch.setattr(google_docs, "_require_google", lambda: None)
+    monkeypatch.setattr(
+        google_docs,
+        "_google_auth_imports",
+        lambda: (RefreshError, Request, Credentials, InstalledAppFlow),
+    )
+
+    creds = google_docs._load_credentials()
+
+    assert isinstance(creds, _FreshCreds)
+    assert token_path.read_text(encoding="utf-8") == '{"access_token": "new"}'

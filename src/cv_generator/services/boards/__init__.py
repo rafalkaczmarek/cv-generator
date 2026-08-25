@@ -13,6 +13,11 @@ from cv_generator.services.boards.base import (
 )
 from cv_generator.services.boards.bulldogjob import BulldogjobClient
 from cv_generator.services.boards.fetch_service import BoardFetchResult, BoardFetchService
+from cv_generator.services.boards.filters import (
+    filter_board_offers,
+    is_recently_published,
+    offer_matches_keywords,
+)
 from cv_generator.services.boards.justjoin import JustJoinClient
 from cv_generator.services.boards.nofluff import NoFluffClient
 from cv_generator.services.boards.pracuj import PracujClient
@@ -25,6 +30,9 @@ __all__ = [
     "BoardFetchService",
     "BoardQuery",
     "BulldogjobClient",
+    "filter_board_offers",
+    "is_recently_published",
+    "offer_matches_keywords",
     "JustJoinClient",
     "NoFluffClient",
     "PracujClient",

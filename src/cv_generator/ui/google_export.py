@@ -45,4 +45,11 @@ def render_send_to_google_docs_button(
         except FileNotFoundError as exc:
             st.error(str(exc))
         except Exception as exc:  # pragma: no cover - OAuth / API errors
-            st.error(f"Nie udało się wysłać do Google Docs: {exc}")
+            if "invalid_grant" in str(exc).lower():
+                st.error(
+                    "Token Google wygasł lub został odwołany. Usuń "
+                    f"`{settings.google_token_path}` i kliknij ponownie — "
+                    "otworzy się logowanie Google."
+                )
+            else:
+                st.error(f"Nie udało się wysłać do Google Docs: {exc}")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -37,13 +38,21 @@ class _FailingClient:
         raise BoardClientError(self._message)
 
 
-def _offer(source: BoardSource, external_id: str, title: str = "Dev") -> BoardOffer:
+def _offer(
+    source: BoardSource,
+    external_id: str,
+    title: str = "Dev",
+    *,
+    skills: list[str] | None = None,
+    published_at: datetime | None = None,
+) -> BoardOffer:
     return BoardOffer(
         source=source,
         external_id=external_id,
         url=f"https://example.com/{source.value}/{external_id}",
         title=title,
-        skills=["Python"],
+        skills=["Python"] if skills is None else skills,
+        published_at=published_at or datetime.now(UTC),
     )
 
 
@@ -132,3 +141,35 @@ def test_refresh_respects_source_filter(storage: Storage) -> None:
     assert BoardSource.NOFLUFF not in result.fetched
     keys = {o.offer_key for o in storage.list_board_offers()}
     assert keys == {"justjoin:a"}
+
+
+def test_refresh_persists_only_recent_keyword_matches(storage: Storage) -> None:
+    now = datetime.now(UTC)
+    keep = _offer(BoardSource.JUSTJOIN, "keep", title="Python backend", published_at=now)
+    old = _offer(
+        BoardSource.JUSTJOIN,
+        "old",
+        title="Python backend",
+        published_at=now - timedelta(days=5),
+    )
+    mismatch = _offer(
+        BoardSource.JUSTJOIN,
+        "go",
+        title="Go engineer",
+        skills=["Go"],
+        published_at=now,
+    )
+    service = BoardFetchService(
+        storage=storage,
+        clients={
+            BoardSource.JUSTJOIN: _FakeClient(
+                BoardSource.JUSTJOIN, [keep, old, mismatch]
+            )
+        },
+    )
+
+    result = service.refresh(query=BoardQuery(keywords=["Python"]))
+
+    assert result.fetched[BoardSource.JUSTJOIN] == 1
+    keys = {o.offer_key for o in storage.list_board_offers()}
+    assert keys == {"justjoin:keep"}

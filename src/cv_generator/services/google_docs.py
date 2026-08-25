@@ -73,11 +73,19 @@ def _require_google():
         ) from exc
 
 
-def _load_credentials():
-    _require_google()
+def _google_auth_imports():
+    """Import Google OAuth types. Isolated so tests can stub the extra."""
+    from google.auth.exceptions import RefreshError
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
     from google_auth_oauthlib.flow import InstalledAppFlow
+
+    return RefreshError, Request, Credentials, InstalledAppFlow
+
+
+def _load_credentials():
+    _require_google()
+    RefreshError, Request, Credentials, InstalledAppFlow = _google_auth_imports()
 
     settings = get_settings()
     token_path: Path = settings.google_token_path
@@ -87,19 +95,28 @@ def _load_credentials():
     if token_path.exists():
         creds = Credentials.from_authorized_user_file(str(token_path), _SCOPES)
 
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
+    if creds and creds.valid:
+        return creds
+
+    if creds and creds.expired and creds.refresh_token:
+        try:
             creds.refresh(Request())
-        else:
-            if not creds_path.exists():
-                raise FileNotFoundError(
-                    f"Missing Google OAuth credentials at {creds_path}. "
-                    "Download client secret JSON from Google Cloud Console."
-                )
-            flow = InstalledAppFlow.from_client_secrets_file(str(creds_path), _SCOPES)
-            creds = flow.run_local_server(port=0)
-        token_path.parent.mkdir(parents=True, exist_ok=True)
-        token_path.write_text(creds.to_json(), encoding="utf-8")
+        except RefreshError:
+            # Testing-mode tokens expire after 7 days; users can also revoke access.
+            creds = None
+            token_path.unlink(missing_ok=True)
+
+    if not creds or not creds.valid:
+        if not creds_path.exists():
+            raise FileNotFoundError(
+                f"Missing Google OAuth credentials at {creds_path}. "
+                "Download client secret JSON from Google Cloud Console."
+            )
+        flow = InstalledAppFlow.from_client_secrets_file(str(creds_path), _SCOPES)
+        creds = flow.run_local_server(port=0)
+
+    token_path.parent.mkdir(parents=True, exist_ok=True)
+    token_path.write_text(creds.to_json(), encoding="utf-8")
     return creds
 
 

@@ -82,7 +82,7 @@ def test_offers_send_to_google_docs_for_existing_cv(
         title="Senior Python Engineer",
         company="GammaTech",
         skills=["Python", "FastAPI", "PostgreSQL", "Docker"],
-        published_at=datetime(2026, 8, 5),
+        published_at=datetime.now(),
         is_active=True,
     )
     clean_boards.upsert_board_offers([offer])

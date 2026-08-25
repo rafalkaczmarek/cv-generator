@@ -11,7 +11,9 @@ from cv_generator.agents.job_analyzer import JobFetchError, analyze_job
 from cv_generator.config import get_settings
 from cv_generator.graph.pipeline import generate_cv
 from cv_generator.models import BOARD_LABELS, BoardOffer, BoardSource, JobOffer, Profile
-from cv_generator.services.boards import BoardFetchResult, BoardFetchService, BoardQuery
+from cv_generator.services.boards.base import BoardQuery
+from cv_generator.services.boards.fetch_service import BoardFetchResult, BoardFetchService
+from cv_generator.services.boards.filters import filter_board_offers
 from cv_generator.services.docx_generator import render_cv
 from cv_generator.services.offer_matcher import (
     MatchResult,
@@ -29,6 +31,10 @@ from cv_generator.ui.state import ss_get, storage
 
 def render_offers_tab() -> None:
     st.header("Oferty pracy (portale PL)")
+    st.caption(
+        "Widoczne są wyłącznie oferty z **dzisiaj i wczoraj**, których tytuł "
+        "lub skills zawierają podane słowa kluczowe."
+    )
     profile: Profile | None = ss_get("profile")
     if not profile:
         st.info(
@@ -67,14 +73,30 @@ def render_offers_tab() -> None:
         if last_result:
             _render_refresh_summary(last_result)
 
-    offers = storage().list_board_offers(
+    stored = storage().list_board_offers(
         sources=selected_sources or None,
         include_inactive=True,
     )
-    if not offers:
+    if not stored:
         st.info(
             "Brak zapisanych ofert. Kliknij **Odśwież oferty**, aby pobrać "
             "aktualne listingi z wybranych portali."
+        )
+        return
+
+    keywords = _keywords_from_session()
+    if not keywords:
+        st.warning(
+            "Podaj słowa kluczowe — lista pokazuje tylko oferty z dzisiaj "
+            "i wczoraj, które je zawierają."
+        )
+        return
+
+    offers = filter_board_offers(stored, keywords=keywords)
+    if not offers:
+        st.info(
+            "Brak ofert z dzisiaj i wczoraj pasujących do słów kluczowych. "
+            "Zmień słowa albo kliknij **Odśwież oferty**."
         )
         return
 
@@ -94,7 +116,10 @@ def _render_query_form(profile: Profile) -> None:
         "Słowa kluczowe (oddzielone przecinkami)",
         value=st.session_state.get("offers_keywords", default_keywords),
         key="offers_keywords",
-        help="Domyślnie skills z profilu — zawęź lub rozszerz według uznania.",
+        help=(
+            "Oferta musi zawierać przynajmniej jedno ze słów (tytuł lub skills). "
+            "Domyślnie skills z profilu — zawęź lub rozszerz według uznania."
+        ),
     )
     col_city, col_remote = st.columns([2, 1])
     with col_city:
@@ -120,10 +145,14 @@ def _render_source_filters() -> list[BoardSource]:
     return selected
 
 
+def _keywords_from_session() -> list[str]:
+    raw = st.session_state.get("offers_keywords", "") or ""
+    return [k.strip() for k in raw.split(",") if k.strip()]
+
+
 def _build_query() -> BoardQuery:
     settings = get_settings()
-    keywords_raw = st.session_state.get("offers_keywords", "") or ""
-    keywords = [k.strip() for k in keywords_raw.split(",") if k.strip()]
+    keywords = _keywords_from_session()
     city = (st.session_state.get("offers_city") or "").strip() or None
     remote = bool(st.session_state.get("offers_remote_only", False))
     return BoardQuery(
@@ -171,7 +200,7 @@ def _render_summary(all_offers: list[BoardOffer], results: list[MatchResult]) ->
     active = sum(1 for o in all_offers if o.is_active)
     shown = len(results)
     st.caption(
-        f"Widocznych ofert: **{shown}** / w bazie: **{total}** "
+        f"Widocznych ofert: **{shown}** / w bazie (po dacie i słowach): **{total}** "
         f"(aktywnych: {active}, nieaktywnych: {total - active})"
     )
 

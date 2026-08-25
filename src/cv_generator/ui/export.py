@@ -165,7 +165,9 @@ def _render_google_docs_setup_help() -> None:
             "2. Włącz Drive API (i opcjonalnie Docs API) w Google Cloud Console.\n"
             "3. Pobierz OAuth credentials → "
             f"`{settings.google_credentials_path}`.\n"
-            "4. Po wygenerowaniu CV użyj **Wyślij do Google Docs** obok przycisku pobierania."
+            "4. Po wygenerowaniu CV użyj **Wyślij do Google Docs** obok przycisku pobierania.\n"
+            "5. Jeśli token wygasł (`invalid_grant`), usuń "
+            f"`{settings.google_token_path}` i kliknij ponownie — otworzy się logowanie Google."
         )
 
 

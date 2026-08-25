@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from cv_generator.models import BoardOffer, BoardSource
 from cv_generator.services.boards.base import BoardClient, BoardQuery
 from cv_generator.services.boards.bulldogjob import BulldogjobClient
+from cv_generator.services.boards.filters import filter_board_offers
 from cv_generator.services.boards.justjoin import JustJoinClient
 from cv_generator.services.boards.nofluff import NoFluffClient
 from cv_generator.services.boards.pracuj import PracujClient
@@ -92,6 +93,12 @@ class BoardFetchService:
 
                 if error:
                     result.errors[source] = error
+                if offers:
+                    offers = filter_board_offers(
+                        offers,
+                        keywords=query.keywords,
+                        require_keywords=False,
+                    )
                 if offers:
                     self._storage.upsert_board_offers(offers)
                     result.fetched[source] = len(offers)

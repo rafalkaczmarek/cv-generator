@@ -8,7 +8,7 @@ board fetcher / matcher / CV generation chain.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -91,7 +91,7 @@ def _make_offer(
         title=title,
         company=company,
         skills=["Python", "FastAPI"] if skills is None else skills,
-        published_at=published_at or datetime(2026, 8, 1),
+        published_at=published_at or datetime.now(UTC),
     )
 
 

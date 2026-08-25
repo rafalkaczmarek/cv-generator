@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -25,6 +25,10 @@ def _db_path(e2e_workspace: Path) -> Path:
     return e2e_workspace / "data" / "cv_generator.sqlite"
 
 
+def _recent(*, days_ago: int = 0) -> datetime:
+    return datetime.now() - timedelta(days=days_ago)
+
+
 def _build_offer(
     source: BoardSource,
     external_id: str,
@@ -32,7 +36,7 @@ def _build_offer(
     title: str,
     company: str,
     skills: list[str],
-    published_at: datetime,
+    published_at: datetime | None = None,
     is_active: bool = True,
     location: str | None = None,
 ) -> BoardOffer:
@@ -43,7 +47,7 @@ def _build_offer(
         title=title,
         company=company,
         skills=skills,
-        published_at=published_at,
+        published_at=published_at if published_at is not None else _recent(),
         location=location,
         is_active=is_active,
     )
@@ -119,7 +123,7 @@ def test_offers_tab_lists_preseeded_offers_with_scores(
                 title="Senior Python Engineer",
                 company="GammaTech",
                 skills=["Python", "FastAPI", "PostgreSQL", "Docker"],
-                published_at=datetime(2026, 8, 5),
+                published_at=_recent(),
                 location="Warszawa",
             ),
             _build_offer(
@@ -128,7 +132,7 @@ def test_offers_tab_lists_preseeded_offers_with_scores(
                 title="Backend Developer",
                 company="Betas",
                 skills=["Python", "Django"],
-                published_at=datetime(2026, 8, 4),
+                published_at=_recent(days_ago=1),
             ),
         ],
     )
@@ -166,7 +170,7 @@ def test_offers_tab_min_score_filter_hides_weak_matches(
                 title="Senior Python Engineer",
                 company="GammaTech",
                 skills=["Python", "FastAPI", "PostgreSQL"],
-                published_at=datetime(2026, 8, 5),
+                published_at=_recent(),
             ),
             _build_offer(
                 BoardSource.NOFLUFF,
@@ -174,7 +178,7 @@ def test_offers_tab_min_score_filter_hides_weak_matches(
                 title="Erlang Guru",
                 company="RareStack",
                 skills=["Erlang", "Haskell", "Rust"],
-                published_at=datetime(2026, 8, 5),
+                published_at=_recent(),
             ),
         ],
     )
@@ -206,7 +210,7 @@ def test_offers_tab_hides_zero_percent_and_skillless_offers(
                 title="Senior Python Engineer",
                 company="GammaTech",
                 skills=["Python", "FastAPI", "PostgreSQL"],
-                published_at=datetime(2026, 8, 5),
+                published_at=_recent(),
             ),
             _build_offer(
                 BoardSource.PRACUJ,
@@ -214,7 +218,7 @@ def test_offers_tab_hides_zero_percent_and_skillless_offers(
                 title="Skilless Mystery Role",
                 company="BlankCorp",
                 skills=[],
-                published_at=datetime(2026, 8, 5),
+                published_at=_recent(),
             ),
             _build_offer(
                 BoardSource.NOFLUFF,
@@ -222,7 +226,7 @@ def test_offers_tab_hides_zero_percent_and_skillless_offers(
                 title="Cobol Mainframe Expert",
                 company="LegacySoft",
                 skills=["Cobol", "Fortran", "Ada"],
-                published_at=datetime(2026, 8, 5),
+                published_at=_recent(),
             ),
         ],
     )
@@ -260,7 +264,7 @@ def test_offers_tab_shows_and_toggles_inactive_offers(
                 title="Active Python Role",
                 company="ActiveCo",
                 skills=["Python", "FastAPI"],
-                published_at=datetime(2026, 8, 5),
+                published_at=_recent(),
             ),
             _build_offer(
                 BoardSource.JUSTJOIN,
@@ -268,7 +272,7 @@ def test_offers_tab_shows_and_toggles_inactive_offers(
                 title="Ghost Python Role",
                 company="GhostCo",
                 skills=["Python", "FastAPI"],
-                published_at=datetime(2026, 8, 4),
+                published_at=_recent(days_ago=1),
                 is_active=False,
             ),
         ],
@@ -303,7 +307,7 @@ def test_offers_tab_download_button_appears_when_cv_already_exists(
         title="Senior Python Engineer",
         company="GammaTech",
         skills=["Python", "FastAPI", "PostgreSQL", "Docker"],
-        published_at=datetime(2026, 8, 5),
+        published_at=_recent(),
     )
     _preseed_offers(clean_boards, [offer])
 
@@ -371,7 +375,7 @@ def test_offers_tab_source_filter_hides_unselected_portals(
                 title="JJIT Python Role",
                 company="JJITCo",
                 skills=["Python", "FastAPI"],
-                published_at=datetime(2026, 8, 5),
+                published_at=_recent(),
             ),
             _build_offer(
                 BoardSource.NOFLUFF,
@@ -379,7 +383,7 @@ def test_offers_tab_source_filter_hides_unselected_portals(
                 title="NFJ Python Role",
                 company="NFJCo",
                 skills=["Python", "FastAPI"],
-                published_at=datetime(2026, 8, 5),
+                published_at=_recent(),
             ),
         ],
     )
@@ -398,3 +402,97 @@ def test_offers_tab_source_filter_hides_unselected_portals(
 
     expect(offers_panel.get_by_text("NFJ Python Role", exact=False)).to_have_count(0)
     expect(offers_panel.get_by_text("JJIT Python Role", exact=False)).to_be_visible()
+
+
+def test_offers_tab_hides_old_and_non_keyword_offers(
+    page: Page,
+    streamlit_url: str,
+    e2e_workspace: Path,
+    clean_boards: Storage,
+) -> None:
+    """Only today/yesterday offers whose title/skills hit the keywords are listed."""
+    _preseed_offers(
+        clean_boards,
+        [
+            _build_offer(
+                BoardSource.JUSTJOIN,
+                "fresh-python",
+                title="Senior Python Engineer",
+                company="GammaTech",
+                skills=["Python", "FastAPI"],
+                published_at=_recent(),
+            ),
+            _build_offer(
+                BoardSource.NOFLUFF,
+                "stale-python",
+                title="Legacy Python Role",
+                company="OldCo",
+                skills=["Python", "FastAPI"],
+                published_at=_recent(days_ago=5),
+            ),
+            _build_offer(
+                BoardSource.PRACUJ,
+                "fresh-go",
+                title="Go Platform Engineer",
+                company="GopherLabs",
+                skills=["Go", "Kubernetes"],
+                published_at=_recent(),
+            ),
+        ],
+    )
+
+    goto_app(page, streamlit_url)
+    set_profile_in_session(page)
+    open_tab(page, "Oferty")
+    offers_panel = page.get_by_role("tabpanel", name="Oferty")
+
+    expect(offers_panel.get_by_role("heading", name="Senior Python Engineer")).to_be_visible(
+        timeout=15_000
+    )
+    expect(offers_panel.get_by_text("Legacy Python Role", exact=False)).to_have_count(0)
+    expect(offers_panel.get_by_text("OldCo", exact=False)).to_have_count(0)
+    expect(offers_panel.get_by_text("Go Platform Engineer", exact=False)).to_have_count(0)
+    expect(offers_panel.get_by_text("GopherLabs", exact=False)).to_have_count(0)
+
+
+def test_offers_tab_keyword_field_filters_visible_list(
+    page: Page,
+    streamlit_url: str,
+    e2e_workspace: Path,
+    clean_boards: Storage,
+) -> None:
+    _preseed_offers(
+        clean_boards,
+        [
+            _build_offer(
+                BoardSource.JUSTJOIN,
+                "python-role",
+                title="Senior Python Engineer",
+                company="GammaTech",
+                skills=["Python", "FastAPI"],
+                published_at=_recent(),
+            ),
+        ],
+    )
+
+    goto_app(page, streamlit_url)
+    set_profile_in_session(page)
+    open_tab(page, "Oferty")
+    offers_panel = page.get_by_role("tabpanel", name="Oferty")
+
+    expect(offers_panel.get_by_role("heading", name="Senior Python Engineer")).to_be_visible(
+        timeout=15_000
+    )
+
+    _open_filters_expander(offers_panel)
+    keywords = offers_panel.get_by_label("Słowa kluczowe (oddzielone przecinkami)")
+    expect(keywords).to_be_visible()
+    keywords.fill("Erlang")
+    keywords.press("Enter")
+
+    expect(offers_panel.get_by_role("heading", name="Senior Python Engineer")).to_have_count(
+        0, timeout=15_000
+    )
+    expect(
+        offers_panel.get_by_text("pasujących do słów kluczowych", exact=False)
+    ).to_be_visible()
