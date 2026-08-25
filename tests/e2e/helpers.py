@@ -72,8 +72,12 @@ def fill_minimal_profile(page: Page) -> None:
     profile.get_by_label("Email").fill(E2E_PROFILE["email"])
     profile.get_by_label("Umiejętności (oddzielone przecinkami)").fill(E2E_PROFILE["skills"])
     profile.get_by_label("Kursy (oddzielone przecinkami)").fill(E2E_PROFILE["courses"])
+    profile.get_by_label("Kursy (oddzielone przecinkami)").press("Tab")
+    wait_for_streamlit_idle(page)
+    expect(profile.get_by_label("Imię i nazwisko")).to_have_value(E2E_PROFILE["full_name"])
 
     profile.get_by_role("button", name="Dodaj doświadczenie").click()
+    wait_for_streamlit_idle(page)
     summary = profile.locator("summary").filter(has_text="#1")
     expect(summary).to_be_visible(timeout=15_000)
     details = summary.locator("xpath=ancestor::details[1]")
@@ -82,20 +86,55 @@ def fill_minimal_profile(page: Page) -> None:
     expect(details).to_have_js_property("open", True, timeout=5_000)
     experience = details.locator('[data-testid="stExpanderDetails"]')
     experience.get_by_label("Firma", exact=True).fill(E2E_PROFILE["experience_company"])
+    experience.get_by_label("Firma", exact=True).press("Tab")
+    wait_for_streamlit_idle(page)
     experience.get_by_label("Stanowisko", exact=True).fill(E2E_PROFILE["experience_title"])
+    experience.get_by_label("Stanowisko", exact=True).press("Tab")
+    wait_for_streamlit_idle(page)
+    expect(experience.get_by_label("Firma", exact=True)).to_have_value(
+        E2E_PROFILE["experience_company"]
+    )
+    expect(experience.get_by_label("Stanowisko", exact=True)).to_have_value(
+        E2E_PROFILE["experience_title"]
+    )
+
+
+def _click_profile_action_until(
+    page: Page,
+    *,
+    button_name: str,
+    success_text: str,
+) -> None:
+    """Click a profile save button, retrying through Streamlit widget reruns."""
+    button = page.get_by_role("button", name=button_name)
+    last_error: Exception | None = None
+    for _ in range(5):
+        wait_for_streamlit_idle(page)
+        button.click()
+        try:
+            expect(page.get_by_text(success_text)).to_be_visible(timeout=5_000)
+            return
+        except AssertionError as exc:
+            last_error = exc
+    assert last_error is not None
+    raise last_error
 
 
 def set_profile_in_session(page: Page) -> None:
     fill_minimal_profile(page)
-    page.get_by_role("button", name="Tylko ustaw w sesji (bez zapisu)").click()
-    expect(page.get_by_text("Profil ustawiony.")).to_be_visible(timeout=15_000)
+    _click_profile_action_until(
+        page,
+        button_name="Tylko ustaw w sesji (bez zapisu)",
+        success_text="Profil ustawiony.",
+    )
 
 
 def save_profile_to_storage(page: Page) -> None:
     fill_minimal_profile(page)
-    page.get_by_role("button", name="Zapisz profil w bazie lokalnej").click()
-    expect(page.get_by_text(f"Zapisano profil dla: {E2E_PROFILE['full_name']}")).to_be_visible(
-        timeout=15_000
+    _click_profile_action_until(
+        page,
+        button_name="Zapisz profil w bazie lokalnej",
+        success_text=f"Zapisano profil dla: {E2E_PROFILE['full_name']}",
     )
 
 
