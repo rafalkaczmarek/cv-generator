@@ -231,7 +231,8 @@ def test_profile_from_linkedin_url_uses_projects_page(mock_fetch: object) -> Non
 
     assert len(profile.education) == 1
     assert profile.education[0].institution == "Politechnika Warszawska"
-    assert profile.education[0].degree == "Bachelor of Science in Computer Science"
+    assert profile.education[0].degree == "Bachelor of Science"
+    assert profile.education[0].field_of_study == "Computer Science"
     assert profile.education[0].start_date == date(2013, 1, 1)
     assert profile.education[0].end_date == date(2018, 1, 1)
 
@@ -311,7 +312,8 @@ def test_profile_from_linkedin_html_parses_saved_page() -> None:
     profile = profile_from_linkedin_html(SAMPLE_HTML + "\n" + PROJECTS_HTML)
     assert profile.full_name == "Jan Kowalski"
     assert profile.experiences[0].title == "Pekao website"
-    assert profile.education[0].degree == "Bachelor of Science in Computer Science"
+    assert profile.education[0].degree == "Bachelor of Science"
+    assert profile.education[0].field_of_study == "Computer Science"
     assert profile.skills == ["Angular", "Docker/Kubernetes"]
     assert str(profile.linkedin_url).rstrip("/").endswith("/in/jan-kowalski")
 
@@ -325,7 +327,8 @@ def test_profile_from_linkedin_html_merges_json_ld_and_polish_school_name() -> N
     profile = profile_from_linkedin_html(LODZ_HTML_POLISH_SCHOOL)
     assert len(profile.education) == 1
     assert profile.education[0].institution == "Lodz University of Technology"
-    assert profile.education[0].degree == "Inżynier (Inż.), Informatyka"
+    assert profile.education[0].degree == "Bachelor of Engineering"
+    assert profile.education[0].field_of_study == "Computer Science"
     assert profile.education[0].start_date == date(2011, 1, 1)
     assert profile.education[0].end_date == date(2015, 1, 1)
 
@@ -334,7 +337,7 @@ def test_profile_from_linkedin_html_handles_degree_in_h3() -> None:
     profile = profile_from_linkedin_html(LODZ_HTML_REVERSED_DEGREE)
     assert len(profile.education) == 1
     assert profile.education[0].institution == "Lodz University of Technology"
-    assert profile.education[0].degree == "Inżynier (Inż.)"
+    assert profile.education[0].degree == "Bachelor of Engineering"
 
 
 def test_profile_from_linkedin_html_merges_with_existing_profile() -> None:
@@ -352,7 +355,8 @@ def test_profile_from_linkedin_html_merges_with_existing_profile() -> None:
     )
     merged = merge_profiles(existing, imported)
     assert len(merged.education) == 1
-    assert merged.education[0].degree == "Inżynier (Inż.), Informatyka"
+    assert merged.education[0].degree == "Bachelor of Engineering"
+    assert merged.education[0].field_of_study == "Computer Science"
 
 
 @patch("cv_generator.services.linkedin_url_import._fetch_profile_html")
@@ -377,11 +381,13 @@ def test_education_degree_from_details_page_when_main_omits_it(mock_fetch: objec
         EDUCATION_DETAILS_HTML,
     ]
     profile = profile_from_linkedin_url("https://www.linkedin.com/in/jan-kowalski/")
-    assert profile.education[0].degree == "Bachelor of Science in Computer Science"
+    assert profile.education[0].degree == "Bachelor of Science"
+    assert profile.education[0].field_of_study == "Computer Science"
 
 
 @patch("cv_generator.services.linkedin_url_import._fetch_profile_html")
 def test_education_degree_from_json_ld_role_name(mock_fetch: object) -> None:
     mock_fetch.side_effect = [ROLE_NAME_HTML, PROJECTS_HTML]  # type: ignore[attr-defined]
     profile = profile_from_linkedin_url("https://www.linkedin.com/in/jan-kowalski/")
-    assert profile.education[0].degree == "Bachelor of Science in Computer Science"
+    assert profile.education[0].degree == "Bachelor of Science"
+    assert profile.education[0].field_of_study == "Computer Science"

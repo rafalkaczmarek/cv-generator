@@ -31,6 +31,11 @@ from datetime import date
 from pathlib import Path
 
 from cv_generator.models import Education, Experience, Profile
+from cv_generator.services.education_normalize import (
+    looks_like_degree,
+    normalize_degree_and_field,
+    split_degree_and_field,
+)
 
 __all__ = [
     "LinkedInImportError",
@@ -103,34 +108,12 @@ def _get(row: Mapping[str, str], *names: str) -> str:
     return ""
 
 
-_DEGREE_HINT_RE = re.compile(
-    r"(?i)\b("
-    r"bachelor|master|doctor|phd|mba|bsc|msc|ba\b|ma\b|b\.?s\.?|m\.?s\.?|"
-    r"licencjat|inżynier|inzynier|mgr|dr\b|engineer|degree|tytuł|tytul"
-    r")\b"
-)
-
-
 def _looks_like_degree(text: str) -> bool:
-    value = text.strip()
-    if not value or len(value) > 160:
-        return False
-    return bool(_DEGREE_HINT_RE.search(value))
+    return looks_like_degree(text)
 
 
 def _split_degree_and_field(raw: str) -> tuple[str | None, str | None]:
-    """Split values like ``Bachelor of Science, Computer Science`` when needed."""
-    text = raw.strip()
-    if not text:
-        return None, None
-    for sep in (" in ", " IN ", " z tytułu ", " z ", ", "):
-        if sep not in text:
-            continue
-        left, right = text.split(sep, 1)
-        left, right = left.strip(" ,;"), right.strip(" ,;")
-        if left and right and 1 < len(right) < 80:
-            return left, right
-    return text, None
+    return split_degree_and_field(raw)
 
 
 def _profile_fields(rows: Sequence[Mapping[str, str]]) -> dict[str, object]:
@@ -223,6 +206,7 @@ def _education(rows: Sequence[Mapping[str, str]]) -> list[Education]:
                 field = degree[23:].strip() or field
             elif degree.lower().startswith("master of science in "):
                 field = degree[21:].strip() or field
+        degree, field = normalize_degree_and_field(degree, field)
         out.append(
             Education(
                 institution=institution or "—",

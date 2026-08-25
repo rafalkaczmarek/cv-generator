@@ -208,7 +208,8 @@ def test_merge_html_imported_education_by_matching_years() -> None:
         education=[
             Education(
                 institution="Politechnika Łódzka",
-                degree="Inżynier (Inż.), Informatyka",
+                degree="Bachelor of Engineering",
+                field_of_study="Computer Science",
                 start_date=date(2011, 1, 1),
                 end_date=date(2015, 1, 1),
             )

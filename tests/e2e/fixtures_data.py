@@ -16,13 +16,13 @@ EDUCATION_BLANK_SCHOOL_CSV = FIXTURES_DIR / "Education_blank_school.csv"
 PROJECTS_CSV = FIXTURES_DIR / "Projects.csv"
 
 E2E_EDUCATION_INSTITUTION = "Politechnika Warszawska"
-E2E_EDUCATION_DEGREE = "mgr inż."
-E2E_EDUCATION_FIELD = "Informatyka"
+E2E_EDUCATION_DEGREE = "Master of Engineering"
+E2E_EDUCATION_FIELD = "Computer Science"
 E2E_EDUCATION_LINE = (
     f"{E2E_EDUCATION_DEGREE}, {E2E_EDUCATION_FIELD} — "
     f"{E2E_EDUCATION_INSTITUTION} (2013 - 2018)"
 )
-E2E_BLANK_SCHOOL_DEGREE = "Inżynier (Inż.)"
+E2E_BLANK_SCHOOL_DEGREE = "Bachelor of Engineering"
 
 
 def build_linkedin_zip(path: Path) -> Path:

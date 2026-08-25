@@ -21,6 +21,7 @@ import httpx
 
 from cv_generator.config import get_settings
 from cv_generator.models import Education, Experience, Profile
+from cv_generator.services.education_normalize import normalize_degree_and_field
 from cv_generator.services.profile_merge import (
     education_match_index,
     fill_education_entry,
@@ -571,6 +572,26 @@ def _education_title_text(edu: Education) -> str:
     return f"{edu.degree or ''} {edu.field_of_study or ''}".strip()
 
 
+def _make_education(
+    *,
+    institution: str,
+    degree: str | None = None,
+    field_of_study: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    description: str | None = None,
+) -> Education:
+    normalized_degree, normalized_field = normalize_degree_and_field(degree, field_of_study)
+    return Education(
+        institution=institution,
+        degree=normalized_degree,
+        field_of_study=normalized_field,
+        start_date=start_date,
+        end_date=end_date,
+        description=description,
+    )
+
+
 def _degree_from_edu_item(item: dict[str, Any]) -> str | None:
     institution = str(item.get("name") or "").strip().lower()
     role = item.get("member") if isinstance(item.get("member"), dict) else {}
@@ -605,7 +626,7 @@ def _education_from_person(person: dict[str, Any]) -> list[Education]:
             continue
         role = item.get("member") if isinstance(item.get("member"), dict) else {}
         out.append(
-            Education(
+            _make_education(
                 institution=institution,
                 degree=_degree_from_edu_item(item),
                 start_date=_schema_date(role.get("startDate")),
@@ -680,7 +701,7 @@ def _education_from_h3_html(html: str) -> list[Education]:
                     degree_line = line
         start, end, _is_current = _parse_date_range(date_line) if date_line else (None, None, False)
         out.append(
-            Education(
+            _make_education(
                 institution=institution,
                 degree=degree_line or None,
                 start_date=start,
@@ -714,7 +735,7 @@ def _education_from_plain_text(section_text: str) -> list[Education]:
             index += 1
         start, end, _is_current = _parse_date_range(date_line) if date_line else (None, None, False)
         out.append(
-            Education(
+            _make_education(
                 institution=institution,
                 degree=degree_line or None,
                 start_date=start,

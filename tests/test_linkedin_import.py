@@ -89,8 +89,8 @@ def test_zip_import_maps_all_sections() -> None:
     assert "https://github.com/jan/cv" in (project.summary or "")
 
     assert profile.education[0].institution == "Politechnika Warszawska"
-    assert profile.education[0].degree == "mgr inż."
-    assert profile.education[0].field_of_study == "Informatyka"
+    assert profile.education[0].degree == "Master of Engineering"
+    assert profile.education[0].field_of_study == "Computer Science"
     assert profile.education[0].start_date == date(2013, 1, 1)
 
     assert profile.skills == ["Python", "FastAPI", "Docker"]  # deduped, order kept
@@ -138,7 +138,7 @@ def test_education_csv_accepts_empty_school_name_with_degree() -> None:
     profile = profile_from_linkedin_csv("Education.csv", csv)
     assert len(profile.education) == 1
     assert profile.education[0].institution == "—"
-    assert profile.education[0].degree == "Inżynier (Inż.)"
+    assert profile.education[0].degree == "Bachelor of Engineering"
     assert profile.education[0].start_date == date(2011, 1, 1)
     assert profile.education[0].end_date == date(2015, 1, 1)
 

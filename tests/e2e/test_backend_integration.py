@@ -216,7 +216,8 @@ def test_linkedin_url_import_education_degree_for_e2e(mock_fetch: object) -> Non
         EDUCATION_DETAILS_HTML,
     ]
     profile = profile_from_linkedin_url("https://www.linkedin.com/in/jan-kowalski/")
-    assert profile.education[0].degree == "Bachelor of Science in Computer Science"
+    assert profile.education[0].degree == "Bachelor of Science"
+    assert profile.education[0].field_of_study == "Computer Science"
 
 
 def test_linkedin_import_rejects_unknown_csv() -> None:
