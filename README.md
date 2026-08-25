@@ -125,6 +125,12 @@ są nadpisywane. Doświadczenie zawodowe pobierane jest z podstrony projektów
 (`/details/projects/`), ponieważ główny profil często maskuje historię
 zatrudnienia gwiazdkami dla niezalogowanych użytkowników.
 
+> **Uwaga:** LinkedIn często zwraca kod **999** (blokada antybotowa) i odmawia
+> automatycznego pobierania. Wtedy:
+> 1. Otwórz profil w przeglądarce → *Zapisz stronę jako…* → wgraj plik HTML
+>    w tej samej sekcji importu, **albo**
+> 2. Użyj oficjalnego eksportu ZIP (poniżej).
+
 ### Z oficjalnego eksportu (ZIP/CSV)
 
 LinkedIn pozwala pobrać kopię Twoich danych jako archiwum CSV.

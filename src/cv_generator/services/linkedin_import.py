@@ -87,12 +87,50 @@ def _parse_date(raw: str | None) -> date | None:
 
 def _get(row: Mapping[str, str], *names: str) -> str:
     """Case-insensitive lookup tolerant of LinkedIn's column-name variations."""
-    lowered = {k.strip().lower(): (v or "").strip() for k, v in row.items() if k}
+    normalized: dict[str, str] = {}
+    for key, value in row.items():
+        if not key:
+            continue
+        # "Degree Name", "DegreeName", "degree_name" → "degreename"
+        compact = re.sub(r"[^a-z0-9]", "", key.strip().lower())
+        if compact and compact not in normalized:
+            normalized[compact] = (value or "").strip()
     for name in names:
-        value = lowered.get(name.lower())
+        compact = re.sub(r"[^a-z0-9]", "", name.strip().lower())
+        value = normalized.get(compact)
         if value:
             return value
     return ""
+
+
+_DEGREE_HINT_RE = re.compile(
+    r"(?i)\b("
+    r"bachelor|master|doctor|phd|mba|bsc|msc|ba\b|ma\b|b\.?s\.?|m\.?s\.?|"
+    r"licencjat|inżynier|inzynier|mgr|dr\b|engineer|degree|tytuł|tytul"
+    r")\b"
+)
+
+
+def _looks_like_degree(text: str) -> bool:
+    value = text.strip()
+    if not value or len(value) > 160:
+        return False
+    return bool(_DEGREE_HINT_RE.search(value))
+
+
+def _split_degree_and_field(raw: str) -> tuple[str | None, str | None]:
+    """Split values like ``Bachelor of Science, Computer Science`` when needed."""
+    text = raw.strip()
+    if not text:
+        return None, None
+    for sep in (" in ", " IN ", " z tytułu ", " z ", ", "):
+        if sep not in text:
+            continue
+        left, right = text.split(sep, 1)
+        left, right = left.strip(" ,;"), right.strip(" ,;")
+        if left and right and 1 < len(right) < 80:
+            return left, right
+    return text, None
 
 
 def _profile_fields(rows: Sequence[Mapping[str, str]]) -> dict[str, object]:
@@ -157,17 +195,42 @@ def _experiences(rows: Sequence[Mapping[str, str]]) -> list[Experience]:
 def _education(rows: Sequence[Mapping[str, str]]) -> list[Education]:
     out: list[Education] = []
     for row in rows:
-        institution = _get(row, "School Name", "School")
-        if not institution:
+        institution = _get(row, "School Name", "School", "SchoolName", "Institution")
+        degree = _get(row, "Degree Name", "Degree", "DegreeName", "Title") or None
+        field = (
+            _get(
+                row,
+                "Field Of Study",
+                "Field of Study",
+                "FieldOfStudy",
+                "Fields Of Study",
+                "Field",
+                "Major",
+            )
+            or None
+        )
+        notes = _get(row, "Notes", "Activities", "Description") or None
+        # LinkedIn sometimes exports Degree Name with an empty School Name.
+        if not institution and not degree and not field and not notes:
             continue
+        if not degree and notes and _looks_like_degree(notes):
+            degree, notes = notes, None
+        if degree and not field:
+            split_degree, split_field = _split_degree_and_field(degree)
+            if split_field:
+                degree, field = split_degree, split_field
+            elif degree.lower().startswith("bachelor of science in "):
+                field = degree[23:].strip() or field
+            elif degree.lower().startswith("master of science in "):
+                field = degree[21:].strip() or field
         out.append(
             Education(
-                institution=institution,
-                degree=_get(row, "Degree Name", "Degree") or None,
-                field_of_study=_get(row, "Field Of Study") or None,
-                start_date=_parse_date(_get(row, "Start Date")),
-                end_date=_parse_date(_get(row, "End Date")),
-                description=_get(row, "Notes", "Activities") or None,
+                institution=institution or "—",
+                degree=degree,
+                field_of_study=field,
+                start_date=_parse_date(_get(row, "Start Date", "Started On", "StartDate")),
+                end_date=_parse_date(_get(row, "End Date", "Finished On", "EndDate")),
+                description=notes,
             )
         )
     return out

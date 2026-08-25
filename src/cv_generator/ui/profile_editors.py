@@ -18,6 +18,29 @@ from cv_generator.ui.state import (
     with_entry_ids,
 )
 
+_EDU_WIDGET_PREFIXES = ("edu_inst_", "edu_deg_", "edu_field_", "edu_desc_")
+
+
+def clear_education_widget_keys() -> None:
+    for key in list(st.session_state.keys()):
+        if key.startswith(_EDU_WIDGET_PREFIXES):
+            del st.session_state[key]
+
+
+def sync_education_buffer(profile: Profile | None) -> None:
+    """Rebuild ``edu_buffer`` and widget keys from *profile* (e.g. after import)."""
+    clear_education_widget_keys()
+    current: list[dict[str, Any]] = (
+        [json.loads(e.model_dump_json()) for e in profile.education] if profile else []
+    )
+    st.session_state.edu_buffer = with_entry_ids(current)
+    for edu in st.session_state.edu_buffer:
+        entry_id = ensure_entry_id(edu)
+        st.session_state[f"edu_inst_{entry_id}"] = edu.get("institution") or ""
+        st.session_state[f"edu_deg_{entry_id}"] = edu.get("degree") or ""
+        st.session_state[f"edu_field_{entry_id}"] = edu.get("field_of_study") or ""
+        st.session_state[f"edu_desc_{entry_id}"] = edu.get("description") or ""
+
 
 def experiences_editor(profile: Profile | None) -> list[Experience]:
     st.subheader("Doświadczenie zawodowe")
@@ -136,16 +159,14 @@ def experiences_editor(profile: Profile | None) -> list[Experience]:
 
 def education_editor(profile: Profile | None) -> list[Education]:
     st.subheader("Wykształcenie")
-    current: list[dict[str, Any]] = (
-        [json.loads(e.model_dump_json()) for e in profile.education] if profile else []
-    )
     if "edu_buffer" not in st.session_state:
-        st.session_state.edu_buffer = with_entry_ids(current)
+        sync_education_buffer(profile)
 
     if st.button("Dodaj wykształcenie", key="add_edu"):
+        entry_id = str(uuid.uuid4())
         st.session_state.edu_buffer.append(
             {
-                "_id": str(uuid.uuid4()),
+                "_id": entry_id,
                 "institution": "",
                 "degree": "",
                 "field_of_study": "",
@@ -153,6 +174,10 @@ def education_editor(profile: Profile | None) -> list[Education]:
                 "end_date": None,
             }
         )
+        st.session_state[f"edu_inst_{entry_id}"] = ""
+        st.session_state[f"edu_deg_{entry_id}"] = ""
+        st.session_state[f"edu_field_{entry_id}"] = ""
+        st.session_state[f"edu_desc_{entry_id}"] = ""
 
     keep: list[Education] = []
     keep_buffer: list[dict[str, Any]] = []
@@ -162,24 +187,23 @@ def education_editor(profile: Profile | None) -> list[Education]:
         if entry_id not in active_ids:
             continue
         with st.expander(f"#{idx + 1} {edu.get('institution') or 'nowa pozycja'}", expanded=False):
+            # Widget values come only from session_state (set by sync_education_buffer).
             edu["institution"] = st.text_input(
                 "Uczelnia / szkoła",
-                value=edu.get("institution", ""),
                 key=f"edu_inst_{entry_id}",
             )
             c1, c2 = st.columns(2)
             with c1:
                 edu["degree"] = st.text_input(
-                    "Stopień / tytuł", value=edu.get("degree") or "", key=f"edu_deg_{entry_id}"
+                    "Stopień / tytuł", key=f"edu_deg_{entry_id}"
                 )
             with c2:
                 edu["field_of_study"] = st.text_input(
-                    "Kierunek", value=edu.get("field_of_study") or "", key=f"edu_field_{entry_id}"
+                    "Kierunek", key=f"edu_field_{entry_id}"
                 )
 
             edu["description"] = st.text_area(
                 "Opis (opcjonalnie)",
-                value=edu.get("description") or "",
                 key=f"edu_desc_{entry_id}",
                 height=60,
             )

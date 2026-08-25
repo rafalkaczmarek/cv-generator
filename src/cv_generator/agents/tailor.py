@@ -26,7 +26,8 @@ _SYSTEM = (
     "projects alike. Do not omit, merge, or drop any. You may reorder by relevance "
     "and rewrite bullets, but the count and identity (company + title + dates) of "
     "each entry must be preserved.\n"
-    "6. Output language: {language}.\n"
+    "6. Do not output education — it is copied verbatim from the profile.\n"
+    "7. Output language: {language}.\n"
     "Reply with valid JSON only."
 )
 
@@ -41,8 +42,7 @@ _USER = (
     "Produce a TailoredCV JSON with the following fields: "
     "headline, summary, experiences (list of objects with company, title, "
     "location, date_range, bullets — one object per profile experience, none "
-    "omitted), education_lines (list of strings), "
-    "skills (ordered: most relevant first), courses, languages."
+    "omitted), skills (ordered: most relevant first), courses, languages."
 )
 
 _SUMMARY_SYSTEM = (
@@ -172,8 +172,7 @@ def _build_tailored_cv(parsed: dict, profile: Profile, *, language: str = "en") 
         github_url=str(profile.github_url) if profile.github_url else None,
         website_url=str(profile.website_url) if profile.website_url else None,
         experiences=experiences,
-        education_lines=_as_str_list(parsed.get("education_lines"))
-        or [_format_education(e) for e in profile.education],
+        education_lines=[_format_education(e) for e in profile.education],
         skills=_as_str_list(parsed.get("skills")) or profile.skills,
         courses=_as_str_list(parsed.get("courses")) or profile.courses,
         languages=_as_str_list(parsed.get("languages")) or profile.languages,
@@ -207,9 +206,30 @@ def _format_date_range(
     return f"{start_str} - {end.strftime('%m/%Y')}"
 
 
+def _education_title(edu) -> str | None:
+    degree = (edu.degree or "").strip() or None
+    field = (edu.field_of_study or "").strip() or None
+    if degree and field and field.lower() not in degree.lower():
+        return f"{degree}, {field}"
+    return degree or field
+
+
+def _education_years(edu) -> str | None:
+    start = str(edu.start_date.year) if edu.start_date else ""
+    end = str(edu.end_date.year) if edu.end_date else ""
+    if start and end:
+        return f"{start} - {end}"
+    return start or end or None
+
+
 def _format_education(edu) -> str:
-    parts = [edu.degree, edu.field_of_study, edu.institution]
-    return " - ".join(p for p in parts if p)
+    title = _education_title(edu)
+    institution = (edu.institution or "").strip() or None
+    line = " — ".join(part for part in (title, institution) if part)
+    years = _education_years(edu)
+    if years:
+        return f"{line} ({years})" if line else years
+    return line
 
 
 def _as_str_list(value: object) -> list[str]:

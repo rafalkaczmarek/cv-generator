@@ -7,11 +7,12 @@ from unittest.mock import patch
 
 import pytest
 
-from cv_generator.models import Experience, Profile
+from cv_generator.models import Education, Experience, Profile
 from cv_generator.services.linkedin_url_import import (
     LinkedInUrlImportError,
     is_linkedin_profile_url,
     merge_profiles,
+    profile_from_linkedin_html,
     profile_from_linkedin_url,
 )
 
@@ -54,9 +55,48 @@ SAMPLE_HTML = """
 }
 </script>
 </head>
-<body></body>
+<body>
+<h2>Education</h2>
+<h3>Politechnika Warszawska</h3>
+<p>Bachelor of Science in Computer Science</p>
+<p>2013 - 2018</p>
+</body>
 </html>
 """
+
+JSON_LD_ONLY_HTML = SAMPLE_HTML.replace(
+    """<body>
+<h2>Education</h2>
+<h3>Politechnika Warszawska</h3>
+<p>Bachelor of Science in Computer Science</p>
+<p>2013 - 2018</p>
+</body>""",
+    "<body></body>",
+)
+
+EDUCATION_DETAILS_HTML = """
+<html><body>
+<h2>Education</h2>
+<h3 class="[&>*]:mb-0 text-[18px] text-color-text leading-regular font-semibold">
+      Politechnika Warszawska</h3>
+<p>Bachelor of Science in Computer Science</p>
+<p>2013 - 2018</p>
+</body></html>
+"""
+
+ROLE_NAME_HTML = SAMPLE_HTML.replace(
+    '"member": {"@type": "OrganizationRole", "startDate": 2013, "endDate": 2018}',
+    '"member": {"@type": "OrganizationRole", "startDate": 2013, "endDate": 2018, '
+    '"roleName": "Bachelor of Science in Computer Science"}',
+).replace(
+    """<body>
+<h2>Education</h2>
+<h3>Politechnika Warszawska</h3>
+<p>Bachelor of Science in Computer Science</p>
+<p>2013 - 2018</p>
+</body>""",
+    "<body></body>",
+)
 
 PROJECTS_HTML = """
 <html><body>
@@ -74,6 +114,41 @@ PROJECTS_HTML = """
 <h2>Languages</h2>
 </body></html>
 """
+
+LODZ_JSON_LD_HEAD = """
+<html><head><script type="application/ld+json">{
+  "@type":"ProfilePage",
+  "mainEntity":{
+    "@type":"Person",
+    "name":"Rafał Kaczmarek",
+    "alumniOf":[{
+      "@type":"EducationalOrganization",
+      "name":"Lodz University of Technology",
+      "member":{"@type":"OrganizationRole","startDate":2011,"endDate":2015}
+    }]
+  }
+}</script></head>
+"""
+
+LODZ_HTML_REVERSED_DEGREE = (
+    LODZ_JSON_LD_HEAD
+    + """<body>
+<h2>Education</h2>
+<h3>Inżynier (Inż.)</h3>
+<p>Politechnika Łódzka</p>
+<p>2011 - 2015</p>
+</body></html>"""
+)
+
+LODZ_HTML_POLISH_SCHOOL = (
+    LODZ_JSON_LD_HEAD
+    + """<body>
+<h2>Wykształcenie</h2>
+<h3>Politechnika Łódzka</h3>
+<p>Inżynier (Inż.), Informatyka</p>
+<p>2011 - 2015</p>
+</body></html>"""
+)
 
 BROKEN_TAILWIND_PROJECTS_HTML = """
 <html><body>
@@ -154,6 +229,12 @@ def test_profile_from_linkedin_url_uses_projects_page(mock_fetch: object) -> Non
     assert virtamed.end_date == date(2019, 4, 1)
     assert "Angular 5" in virtamed.technologies
 
+    assert len(profile.education) == 1
+    assert profile.education[0].institution == "Politechnika Warszawska"
+    assert profile.education[0].degree == "Bachelor of Science in Computer Science"
+    assert profile.education[0].start_date == date(2013, 1, 1)
+    assert profile.education[0].end_date == date(2018, 1, 1)
+
 
 @patch("cv_generator.services.linkedin_url_import._fetch_profile_html")
 def test_profile_from_linkedin_url_ignores_non_project_h3_sections(mock_fetch: object) -> None:
@@ -226,6 +307,54 @@ def test_invalid_url_raises() -> None:
         profile_from_linkedin_url("https://example.com/profile")
 
 
+def test_profile_from_linkedin_html_parses_saved_page() -> None:
+    profile = profile_from_linkedin_html(SAMPLE_HTML + "\n" + PROJECTS_HTML)
+    assert profile.full_name == "Jan Kowalski"
+    assert profile.experiences[0].title == "Pekao website"
+    assert profile.education[0].degree == "Bachelor of Science in Computer Science"
+    assert profile.skills == ["Angular", "Docker/Kubernetes"]
+    assert str(profile.linkedin_url).rstrip("/").endswith("/in/jan-kowalski")
+
+
+def test_profile_from_linkedin_html_empty_raises() -> None:
+    with pytest.raises(LinkedInUrlImportError, match="pusty"):
+        profile_from_linkedin_html("   ")
+
+
+def test_profile_from_linkedin_html_merges_json_ld_and_polish_school_name() -> None:
+    profile = profile_from_linkedin_html(LODZ_HTML_POLISH_SCHOOL)
+    assert len(profile.education) == 1
+    assert profile.education[0].institution == "Lodz University of Technology"
+    assert profile.education[0].degree == "Inżynier (Inż.), Informatyka"
+    assert profile.education[0].start_date == date(2011, 1, 1)
+    assert profile.education[0].end_date == date(2015, 1, 1)
+
+
+def test_profile_from_linkedin_html_handles_degree_in_h3() -> None:
+    profile = profile_from_linkedin_html(LODZ_HTML_REVERSED_DEGREE)
+    assert len(profile.education) == 1
+    assert profile.education[0].institution == "Lodz University of Technology"
+    assert profile.education[0].degree == "Inżynier (Inż.)"
+
+
+def test_profile_from_linkedin_html_merges_with_existing_profile() -> None:
+    imported = profile_from_linkedin_html(LODZ_HTML_POLISH_SCHOOL)
+    existing = Profile(
+        full_name="Rafał",
+        education=[
+            Education(
+                institution="Lodz University of Technology",
+                degree="",
+                start_date=date(2011, 1, 1),
+                end_date=date(2015, 1, 1),
+            )
+        ],
+    )
+    merged = merge_profiles(existing, imported)
+    assert len(merged.education) == 1
+    assert merged.education[0].degree == "Inżynier (Inż.), Informatyka"
+
+
 @patch("cv_generator.services.linkedin_url_import._fetch_profile_html")
 def test_http_999_with_json_ld_is_accepted(mock_fetch: object) -> None:
     mock_fetch.side_effect = [SAMPLE_HTML, PROJECTS_HTML]  # type: ignore[attr-defined]
@@ -238,3 +367,21 @@ def test_missing_json_ld_raises(mock_fetch: object) -> None:
     mock_fetch.return_value = "<html><body>login required</body></html>"  # type: ignore[attr-defined]
     with pytest.raises(LinkedInUrlImportError, match="publicznych danych"):
         profile_from_linkedin_url("https://www.linkedin.com/in/private-user/")
+
+
+@patch("cv_generator.services.linkedin_url_import._fetch_profile_html")
+def test_education_degree_from_details_page_when_main_omits_it(mock_fetch: object) -> None:
+    mock_fetch.side_effect = [  # type: ignore[attr-defined]
+        JSON_LD_ONLY_HTML,
+        PROJECTS_HTML,
+        EDUCATION_DETAILS_HTML,
+    ]
+    profile = profile_from_linkedin_url("https://www.linkedin.com/in/jan-kowalski/")
+    assert profile.education[0].degree == "Bachelor of Science in Computer Science"
+
+
+@patch("cv_generator.services.linkedin_url_import._fetch_profile_html")
+def test_education_degree_from_json_ld_role_name(mock_fetch: object) -> None:
+    mock_fetch.side_effect = [ROLE_NAME_HTML, PROJECTS_HTML]  # type: ignore[attr-defined]
+    profile = profile_from_linkedin_url("https://www.linkedin.com/in/jan-kowalski/")
+    assert profile.education[0].degree == "Bachelor of Science in Computer Science"

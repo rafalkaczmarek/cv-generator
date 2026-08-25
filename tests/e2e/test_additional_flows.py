@@ -9,6 +9,12 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e.fixtures_data import (
+    E2E_BLANK_SCHOOL_DEGREE,
+    E2E_EDUCATION_DEGREE,
+    E2E_EDUCATION_FIELD,
+    E2E_EDUCATION_INSTITUTION,
+    EDUCATION_BLANK_SCHOOL_CSV,
+    EDUCATION_CSV,
     POSITIONS_CSV,
     PROFILE_CSV,
     PROJECTS_CSV,
@@ -18,6 +24,7 @@ from tests.e2e.helpers import (
     E2E_PROFILE,
     analyze_pasted_job_offer,
     apply_import_conflict_choice,
+    expect_education_fields,
     export_docx,
     fill_partial_profile,
     goto_app,
@@ -97,6 +104,74 @@ def test_linkedin_zip_import_fills_experiences(
     )
     expect(page.locator("summary").filter(has_text="Acme Corp")).to_be_visible()
     expect(page.locator("summary").filter(has_text="Beta Sp. z o.o.")).to_be_visible()
+
+
+def test_linkedin_education_csv_import_fills_degree_and_field(
+    page: Page, streamlit_url: str
+) -> None:
+    goto_app(page, streamlit_url)
+    import_linkedin_file(page, EDUCATION_CSV)
+
+    expect(
+        page.locator("summary").filter(has_text=E2E_EDUCATION_INSTITUTION)
+    ).to_be_visible(timeout=15_000)
+    expect_education_fields(
+        page,
+        institution=E2E_EDUCATION_INSTITUTION,
+        degree=E2E_EDUCATION_DEGREE,
+        field_of_study=E2E_EDUCATION_FIELD,
+    )
+
+
+def test_linkedin_education_csv_blank_school_fills_degree_into_existing(
+    page: Page, streamlit_url: str
+) -> None:
+    """Real LinkedIn exports may omit School Name while still providing Degree Name."""
+    goto_app(page, streamlit_url)
+    open_tab(page, "Profil")
+    page.get_by_role("button", name="Dodaj wykształcenie").click()
+    education = page.get_by_role("tabpanel", name="Profil").locator(
+        "summary"
+    ).filter(has_text="#1")
+    expect(education).to_be_visible(timeout=15_000)
+    details = education.locator("xpath=ancestor::details[1]")
+    if details.get_attribute("open") is None:
+        education.click()
+    panel = details.locator('[data-testid="stExpanderDetails"]')
+    panel.get_by_label("Uczelnia / szkoła").fill("Lodz University of Technology")
+    page.get_by_role("button", name="Tylko ustaw w sesji (bez zapisu)").click()
+    expect(page.get_by_text("Profil ustawiony.")).to_be_visible(timeout=15_000)
+
+    import_linkedin_file(page, EDUCATION_BLANK_SCHOOL_CSV)
+
+    expect(
+        page.locator("summary").filter(has_text="Lodz University of Technology")
+    ).to_be_visible(timeout=15_000)
+    expect_education_fields(
+        page,
+        institution="Lodz University of Technology",
+        degree=E2E_BLANK_SCHOOL_DEGREE,
+        field_of_study="",
+    )
+
+
+def test_linkedin_zip_import_fills_education_degree(
+    page: Page, streamlit_url: str, tmp_path: Path
+) -> None:
+    goto_app(page, streamlit_url)
+    zip_path = build_linkedin_zip(tmp_path / "linkedin_export_with_education.zip")
+    import_linkedin_file(page, zip_path)
+
+    expect(page.get_by_label("Imię i nazwisko")).to_have_value("Jan Kowalski", timeout=15_000)
+    expect(
+        page.locator("summary").filter(has_text=E2E_EDUCATION_INSTITUTION)
+    ).to_be_visible(timeout=15_000)
+    expect_education_fields(
+        page,
+        institution=E2E_EDUCATION_INSTITUTION,
+        degree=E2E_EDUCATION_DEGREE,
+        field_of_study=E2E_EDUCATION_FIELD,
+    )
 
 
 def test_linkedin_positions_csv_import_partial_profile(page: Page, streamlit_url: str) -> None:

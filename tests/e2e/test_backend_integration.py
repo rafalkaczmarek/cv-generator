@@ -8,6 +8,7 @@ pytest and keep ``cv-generator-e2e-cov`` meaningful.
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from docx import Document
@@ -23,12 +24,23 @@ from cv_generator.services.linkedin_import import (
     profile_from_linkedin_csv,
     profile_from_linkedin_zip,
 )
+from cv_generator.services.linkedin_url_import import profile_from_linkedin_url
 from cv_generator.services.storage import Storage
 from tests.e2e.fixtures_data import (
+    E2E_EDUCATION_DEGREE,
+    E2E_EDUCATION_FIELD,
+    E2E_EDUCATION_INSTITUTION,
+    E2E_EDUCATION_LINE,
+    EDUCATION_CSV,
     POSITIONS_CSV,
     PROFILE_CSV,
     PROJECTS_CSV,
     build_linkedin_zip,
+)
+from tests.test_linkedin_url_import import (
+    EDUCATION_DETAILS_HTML,
+    JSON_LD_ONLY_HTML,
+    PROJECTS_HTML,
 )
 
 pytestmark = pytest.mark.e2e
@@ -51,6 +63,15 @@ def e2e_profile() -> Profile:
                     "is_current": True,
                     "bullets": ["Built FastAPI services on Kubernetes."],
                     "technologies": ["Python", "FastAPI", "Kubernetes"],
+                }
+            ],
+            "education": [
+                {
+                    "institution": E2E_EDUCATION_INSTITUTION,
+                    "degree": E2E_EDUCATION_DEGREE,
+                    "field_of_study": E2E_EDUCATION_FIELD,
+                    "start_date": "2013-01-01",
+                    "end_date": "2018-01-01",
                 }
             ],
         }
@@ -80,6 +101,7 @@ def test_stub_llm_job_analysis_and_pipeline(
     assert cv.match_score >= 70
     assert any(exp.company == "Acme Corp" for exp in cv.experiences)
     assert "AWS Certified Developer" in cv.courses
+    assert cv.education_lines == [E2E_EDUCATION_LINE]
 
 
 def test_analyze_job_requires_input(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -133,6 +155,8 @@ def test_stub_llm_export_roundtrip(
     text = "\n".join(p.text for p in Document(path).paragraphs)
     assert "COURSES" in text
     assert "AWS Certified Developer" in text
+    assert E2E_EDUCATION_DEGREE in text
+    assert E2E_EDUCATION_LINE in text
 
     modern = render_cv(cv, template_id="cv_modern.docx", filename="cv_e2e_modern.docx")
     assert modern.exists() and modern.stat().st_size > 0
@@ -172,6 +196,27 @@ def test_linkedin_csv_and_zip_import(tmp_path: Path) -> None:
     project_titles = [e.title for e in merged.experiences if e.company == "Projekt"]
     assert project_titles == ["CV Generator", "Mid App", "Legacy Portal"]
     assert "Python" in merged.skills
+    assert len(merged.education) == 1
+    assert merged.education[0].degree == E2E_EDUCATION_DEGREE
+    assert merged.education[0].field_of_study == E2E_EDUCATION_FIELD
+
+
+def test_linkedin_education_csv_import_maps_degree() -> None:
+    profile = profile_from_linkedin_csv("Education.csv", EDUCATION_CSV.read_bytes())
+    assert profile.education[0].institution == E2E_EDUCATION_INSTITUTION
+    assert profile.education[0].degree == E2E_EDUCATION_DEGREE
+    assert profile.education[0].field_of_study == E2E_EDUCATION_FIELD
+
+
+@patch("cv_generator.services.linkedin_url_import._fetch_profile_html")
+def test_linkedin_url_import_education_degree_for_e2e(mock_fetch: object) -> None:
+    mock_fetch.side_effect = [  # type: ignore[attr-defined]
+        JSON_LD_ONLY_HTML,
+        PROJECTS_HTML,
+        EDUCATION_DETAILS_HTML,
+    ]
+    profile = profile_from_linkedin_url("https://www.linkedin.com/in/jan-kowalski/")
+    assert profile.education[0].degree == "Bachelor of Science in Computer Science"
 
 
 def test_linkedin_import_rejects_unknown_csv() -> None:

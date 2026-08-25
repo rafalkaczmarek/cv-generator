@@ -89,6 +89,8 @@ def test_zip_import_maps_all_sections() -> None:
     assert "https://github.com/jan/cv" in (project.summary or "")
 
     assert profile.education[0].institution == "Politechnika Warszawska"
+    assert profile.education[0].degree == "mgr inż."
+    assert profile.education[0].field_of_study == "Informatyka"
     assert profile.education[0].start_date == date(2013, 1, 1)
 
     assert profile.skills == ["Python", "FastAPI", "Docker"]  # deduped, order kept
@@ -112,6 +114,43 @@ def test_single_csv_import() -> None:
     profile = profile_from_linkedin_csv("Positions.csv", POSITIONS_CSV)
     assert profile.full_name == "—"  # placeholder, user fills it in
     assert len(profile.experiences) == 2
+
+
+def test_education_csv_uses_notes_as_degree_when_degree_name_empty() -> None:
+    csv = (
+        "School Name,Start Date,End Date,Notes,Degree Name,Field Of Study\r\n"
+        "Lodz University of Technology,2011,2015,"
+        "Bachelor of Science in Computer Science,,\r\n"
+    )
+    profile = profile_from_linkedin_csv("Education.csv", csv)
+    assert profile.education[0].institution == "Lodz University of Technology"
+    assert profile.education[0].degree == "Bachelor of Science"
+    assert profile.education[0].field_of_study == "Computer Science"
+    assert profile.education[0].description is None
+
+
+def test_education_csv_accepts_empty_school_name_with_degree() -> None:
+    """Real LinkedIn export can omit School Name while still providing Degree Name."""
+    csv = (
+        "School Name,Start Date,End Date,Notes,Degree Name,Activities\r\n"
+        ",2011,2015,,Inżynier (Inż.),\r\n"
+    )
+    profile = profile_from_linkedin_csv("Education.csv", csv)
+    assert len(profile.education) == 1
+    assert profile.education[0].institution == "—"
+    assert profile.education[0].degree == "Inżynier (Inż.)"
+    assert profile.education[0].start_date == date(2011, 1, 1)
+    assert profile.education[0].end_date == date(2015, 1, 1)
+
+
+def test_education_csv_splits_combined_degree_and_field() -> None:
+    csv = (
+        "School Name,Degree Name,Field Of Study,Start Date,End Date\r\n"
+        "Lodz University of Technology,Bachelor of Science in Computer Science,,2011,2015\r\n"
+    )
+    profile = profile_from_linkedin_csv("Education.csv", csv)
+    assert profile.education[0].degree == "Bachelor of Science"
+    assert profile.education[0].field_of_study == "Computer Science"
 
 
 def test_projects_csv_import() -> None:

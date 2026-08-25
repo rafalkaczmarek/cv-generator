@@ -13,6 +13,7 @@ from cv_generator.services.linkedin_import import (
 )
 from cv_generator.services.linkedin_url_import import (
     LinkedInUrlImportError,
+    profile_from_linkedin_html,
     profile_from_linkedin_url,
 )
 from cv_generator.services.profile_merge import (
@@ -22,6 +23,7 @@ from cv_generator.services.profile_merge import (
     highlight_text_diff,
     merge_profiles_with_conflicts,
 )
+from cv_generator.ui.profile_editors import sync_education_buffer
 from cv_generator.ui.state import ss_get, strip_entry_id
 
 
@@ -91,9 +93,28 @@ def profile_from_session_state() -> Profile | None:
 
 def set_profile_in_session(profile: Profile) -> None:
     st.session_state.profile = profile
-    for k in ("experiences_buffer", "edu_buffer"):
-        st.session_state.pop(k, None)
+    st.session_state.pop("experiences_buffer", None)
+    # Drop stale experience widget values so imported rows show up.
+    for key in list(st.session_state.keys()):
+        if key.startswith("exp_"):
+            del st.session_state[key]
+    sync_education_buffer(profile)
     sync_profile_form_state(profile)
+
+
+def _education_import_summary(profile: Profile) -> str:
+    if not profile.education:
+        return "brak wpisów wykształcenia"
+    parts: list[str] = []
+    for edu in profile.education:
+        title = ", ".join(
+            p for p in ((edu.degree or "").strip(), (edu.field_of_study or "").strip()) if p
+        )
+        if title:
+            parts.append(f"{edu.institution}: {title}")
+        else:
+            parts.append(f"{edu.institution}: (brak Degree Name / Field Of Study w pliku)")
+    return "; ".join(parts)
 
 
 def apply_imported_profile(
@@ -122,7 +143,8 @@ def apply_imported_profile(
         st.session_state.profile_import_source = source
         st.warning(
             f"Uzupełniono brakujące pola z ({source}). "
-            f"Wykryto {len(conflicts)} konflikt(ów) — wybierz, którą wartość zachować."
+            f"Wykryto {len(conflicts)} konflikt(ów) — wybierz, którą wartość zachować. "
+            f"Wykształcenie: {_education_import_summary(profile)}."
         )
     else:
         st.session_state.pop("profile_import_conflicts", None)
@@ -133,6 +155,7 @@ def apply_imported_profile(
             f"({len(profile.experiences)} doświadczeń, "
             f"{len(profile.education)} wpisów wykształcenia, "
             f"{len(profile.skills)} umiejętności). "
+            f"Wykształcenie: {_education_import_summary(profile)}. "
             "Sprawdź i uzupełnij pola, a następnie zapisz profil."
         )
     st.rerun()
@@ -231,6 +254,11 @@ def render_linkedin_url_import() -> None:
             "projektów (`/details/projects/`), bo główny profil często maskuje "
             "historię zatrudnienia gwiazdkami."
         )
+        st.info(
+            "LinkedIn często blokuje automatyczne pobieranie (błąd 999). "
+            "Wtedy zapisz stronę profilu w przeglądarce jako HTML i wgraj ją "
+            "poniżej, albo użyj oficjalnego eksportu ZIP."
+        )
         url = st.text_input(
             "URL profilu LinkedIn",
             placeholder="https://www.linkedin.com/in/twoj-profil/",
@@ -245,6 +273,33 @@ def render_linkedin_url_import() -> None:
                 st.error(f"Nie udało się zaimportować danych: {exc}")
             else:
                 apply_imported_profile(profile, source="URL LinkedIn")
+
+        st.markdown("**Alternatywa: wgraj HTML strony profilu**")
+        st.caption(
+            "W przeglądarce otwórz publiczny profil (oraz ewentualnie "
+            "`…/details/projects/`), wybierz *Zapisz stronę jako…* / *Save as*, "
+            "potem wgraj plik `.html`."
+        )
+        html_upload = st.file_uploader(
+            "Plik HTML profilu LinkedIn",
+            type=["html", "htm"],
+            key="linkedin_html_upload",
+        )
+        if html_upload is not None and st.button(
+            "Wczytaj dane z HTML", key="linkedin_html_import_btn"
+        ):
+            try:
+                html_text = html_upload.getvalue().decode("utf-8", errors="replace")
+                profile = profile_from_linkedin_html(
+                    html_text,
+                    source_url=url or None,
+                )
+            except LinkedInUrlImportError as exc:
+                st.error(str(exc))
+            except Exception as exc:  # pragma: no cover - defensive
+                st.error(f"Nie udało się zaimportować HTML: {exc}")
+            else:
+                apply_imported_profile(profile, source="HTML LinkedIn")
 
 
 def render_linkedin_import() -> None:

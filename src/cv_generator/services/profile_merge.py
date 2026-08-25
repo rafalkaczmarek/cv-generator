@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date
 from difflib import SequenceMatcher
 from html import escape
 from typing import Any, Literal
+
+from rapidfuzz import fuzz
 
 from cv_generator.models import Education, Experience, Profile
 
@@ -15,6 +19,8 @@ __all__ = [
     "FieldConflict",
     "ProfileMergeResult",
     "apply_conflict_resolutions",
+    "education_match_index",
+    "fill_education_entry",
     "highlight_text_diff",
     "merge_profiles",
     "merge_profiles_with_conflicts",
@@ -69,8 +75,118 @@ def _experience_key(exp: Experience) -> tuple[str, str, date]:
     return (exp.company.lower().strip(), exp.title.lower().strip(), exp.start_date)
 
 
-def _education_key(edu: Education) -> tuple[str, date | None]:
-    return (edu.institution.lower().strip(), edu.start_date)
+def _education_key(edu: Education) -> str:
+    """Match education rows by school only so CSV can fill a URL-imported stub."""
+    return _norm_institution(edu.institution)
+
+
+def _norm_institution(name: str) -> str:
+    folded = unicodedata.normalize("NFKD", name or "")
+    ascii_only = "".join(ch for ch in folded if not unicodedata.combining(ch))
+    return re.sub(r"[^a-z0-9]+", " ", ascii_only.lower()).strip()
+
+
+def _education_years_match(a: Education, b: Education) -> bool:
+    if a.start_date is None or b.start_date is None:
+        return False
+    if a.end_date is None or b.end_date is None:
+        return a.start_date.year == b.start_date.year
+    return a.start_date.year == b.start_date.year and a.end_date.year == b.end_date.year
+
+
+_INSTITUTION_HINT_RE = re.compile(
+    r"(?i)\b(university|uniwersytet|politechnik\w*|akademia|college|school|institute|technolog\w*)\b"
+)
+_DEGREE_HINT_RE = re.compile(
+    r"(?i)\b(inżynier|ingenieur|bachelor|master|mgr|licencjat|doktor|ph\.?d|"
+    r"m\.?sc|b\.?sc|engineer|diploma|magister|licencj)\b"
+)
+
+
+def _looks_like_institution_name(text: str) -> bool:
+    return bool(_INSTITUTION_HINT_RE.search(text))
+
+
+def _looks_like_degree_title(text: str) -> bool:
+    return bool(_DEGREE_HINT_RE.search(text))
+
+
+def education_match_index(existing: list[Education], incoming: Education) -> int | None:
+    """Return the index of *existing* education row matching *incoming*, if any."""
+    return _education_match_index(existing, incoming)
+
+
+def fill_education_entry(existing: Education, incoming: Education) -> Education:
+    """Fill blank fields on *existing* from *incoming* without overwriting set values."""
+    return _fill_education(existing, incoming)
+
+
+def _education_match_index(existing: list[Education], incoming: Education) -> int | None:
+    target = _education_key(incoming)
+    if target:
+        for idx, edu in enumerate(existing):
+            if _education_key(edu) == target:
+                return idx
+        best_idx: int | None = None
+        best_score = 0
+        for idx, edu in enumerate(existing):
+            score = int(fuzz.token_set_ratio(target, _education_key(edu)))
+            if score > best_score:
+                best_score = score
+                best_idx = idx
+        if best_idx is not None and best_score >= 88:
+            return best_idx
+    if incoming.start_date is not None:
+        for idx, edu in enumerate(existing):
+            if _education_years_match(edu, incoming):
+                return idx
+    # LinkedIn Education.csv often has Degree Name but an empty School Name.
+    # Merge that title into the only existing school stub.
+    if (
+        len(existing) == 1
+        and (not _blank(incoming.degree) or not _blank(incoming.field_of_study))
+        and (
+            (_blank(existing[0].degree) and _blank(existing[0].field_of_study))
+            or _is_placeholder(incoming.institution)
+            or _blank(incoming.institution)
+        )
+    ):
+        return 0
+    return None
+
+
+def _blank(value: object | None) -> bool:
+    return not _as_text(value)
+
+
+def _fill_education(existing: Education, incoming: Education) -> Education:
+    updates: dict[str, Any] = {}
+    incoming_degree = _as_text(incoming.degree)
+    if (
+        _blank(existing.degree)
+        and incoming_degree
+        and (
+            not _looks_like_institution_name(incoming_degree)
+            or _looks_like_degree_title(incoming_degree)
+        )
+    ):
+        updates["degree"] = incoming.degree
+    if _blank(existing.field_of_study) and not _blank(incoming.field_of_study):
+        updates["field_of_study"] = incoming.field_of_study
+    if existing.start_date is None and incoming.start_date is not None:
+        updates["start_date"] = incoming.start_date
+    if existing.end_date is None and incoming.end_date is not None:
+        updates["end_date"] = incoming.end_date
+    if _blank(existing.description) and not _blank(incoming.description):
+        updates["description"] = incoming.description
+    # Prefer a real school name over LinkedIn's empty-school placeholder.
+    if (
+        (_is_placeholder(existing.institution) or _blank(existing.institution))
+        and not _is_placeholder(incoming.institution)
+        and not _blank(incoming.institution)
+    ):
+        updates["institution"] = incoming.institution
+    return existing.model_copy(update=updates) if updates else existing
 
 
 def _merge_list_fields(
@@ -86,12 +202,12 @@ def _merge_list_fields(
             seen_exp.add(key)
 
     merged_education = list(existing.education)
-    seen_edu = {_education_key(e) for e in merged_education}
     for edu in incoming.education:
-        key = _education_key(edu)
-        if key not in seen_edu:
+        idx = education_match_index(merged_education, edu)
+        if idx is None:
             merged_education.append(edu)
-            seen_edu.add(key)
+        else:
+            merged_education[idx] = fill_education_entry(merged_education[idx], edu)
 
     merged_skills = list(existing.skills)
     for skill in incoming.skills:

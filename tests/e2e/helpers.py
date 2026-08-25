@@ -8,6 +8,8 @@ from pathlib import Path
 from playwright.sync_api import Locator, Page, expect
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
+from tests.e2e.fixtures_data import E2E_EDUCATION_INSTITUTION
+
 E2E_PROFILE = {
     "full_name": "Jan Kowalski",
     "headline": "Senior Python Developer",
@@ -144,6 +146,37 @@ def _open_details(page: Page, summary_text: str) -> None:
     expect(details).to_have_js_property("open", True, timeout=5_000)
 
 
+def _open_education_entry(page: Page, institution: str) -> Locator:
+    profile = page.get_by_role("tabpanel", name="Profil")
+    summary = profile.locator("summary").filter(has_text=institution)
+    expect(summary).to_be_visible(timeout=15_000)
+    details = summary.locator("xpath=ancestor::details[1]")
+    if details.get_attribute("open") is None:
+        summary.click()
+    expect(details).to_have_js_property("open", True, timeout=5_000)
+    return details.locator('[data-testid="stExpanderDetails"]')
+
+
+def expect_education_fields(
+    page: Page,
+    *,
+    institution: str,
+    degree: str,
+    field_of_study: str = "",
+) -> None:
+    education = _open_education_entry(page, institution)
+    expect(education.get_by_label("Uczelnia / szkoła")).to_have_value(institution)
+    expect(education.get_by_label("Stopień / tytuł")).to_have_value(degree)
+    expect(education.get_by_label("Kierunek")).to_have_value(field_of_study)
+
+
+def import_linkedin_url(page: Page, url: str) -> None:
+    open_tab(page, "Profil")
+    _open_details(page, "Importuj z URL profilu LinkedIn")
+    page.get_by_label("URL profilu LinkedIn").fill(url)
+    page.get_by_role("button", name="Pobierz dane z URL").click()
+
+
 def import_linkedin_file(page: Page, file_path: Path) -> None:
     open_tab(page, "Profil")
     _open_details(page, "Importuj z eksportu LinkedIn")
@@ -206,5 +239,16 @@ def apply_import_conflict_choice(
 
 def run_full_generation_flow(page: Page) -> None:
     set_profile_in_session(page)
+    analyze_pasted_job_offer(page)
+    run_generation_pipeline(page)
+
+
+def run_full_generation_flow_from_linkedin_zip(page: Page, zip_path: Path) -> None:
+    """Import a LinkedIn ZIP (with education) and run the generation pipeline."""
+    import_linkedin_file(page, zip_path)
+    expect(page.get_by_label("Imię i nazwisko")).not_to_have_value("", timeout=15_000)
+    expect(
+        page.locator("summary").filter(has_text=E2E_EDUCATION_INSTITUTION)
+    ).to_be_visible(timeout=15_000)
     analyze_pasted_job_offer(page)
     run_generation_pipeline(page)

@@ -8,6 +8,7 @@ import pytest
 from docx import Document
 from playwright.sync_api import Page, expect
 
+from tests.e2e.fixtures_data import E2E_EDUCATION_DEGREE, E2E_EDUCATION_LINE, build_linkedin_zip
 from tests.e2e.helpers import (
     E2E_PROFILE,
     analyze_pasted_job_offer,
@@ -16,6 +17,7 @@ from tests.e2e.helpers import (
     open_tab,
     reload_saved_profile,
     run_full_generation_flow,
+    run_full_generation_flow_from_linkedin_zip,
     run_generation_pipeline,
     save_profile_to_storage,
     set_profile_in_session,
@@ -81,6 +83,24 @@ def test_full_cv_generation_and_export(
     export_panel = page.get_by_role("tabpanel", name="Eksport")
     expect(export_panel.get_by_text("Historia wygenerowanych CV")).to_be_visible()
     expect(export_panel.get_by_text("score 100").first).to_be_visible()
+
+
+def test_generated_docx_includes_education_degree_title(
+    page: Page, streamlit_url: str, e2e_workspace: Path, tmp_path: Path
+) -> None:
+    goto_app(page, streamlit_url)
+    zip_path = build_linkedin_zip(tmp_path / "linkedin_with_education.zip")
+    run_full_generation_flow_from_linkedin_zip(page, zip_path)
+
+    export_docx(page)
+
+    output_dir = e2e_workspace / "output"
+    docx_files = sorted(output_dir.glob("*.docx"), key=lambda p: p.stat().st_mtime)
+    assert docx_files, "Expected at least one generated DOCX in output dir"
+    doc_text = "\n".join(p.text for p in Document(docx_files[-1]).paragraphs)
+    assert E2E_EDUCATION_DEGREE in doc_text
+    assert E2E_EDUCATION_LINE in doc_text
+    assert "MSc - Computer Science" not in doc_text
 
 
 def test_export_with_selected_template(

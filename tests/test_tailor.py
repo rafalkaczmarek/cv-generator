@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
 from cv_generator.agents import tailor
-from cv_generator.models import TailoredCV
+from cv_generator.models import Education, TailoredCV
 from tests.fake_llm import FakeLLM
 
 
@@ -117,7 +119,9 @@ def test_tailor_cv_normalizes_string_list_fields(
     assert cv.skills == ["Python, FastAPI"]
     assert cv.courses == ["AWS Dev"]
     assert cv.languages == ["Polski"]
-    assert cv.education_lines == ["Uni"]
+    assert cv.education_lines == [
+        "mgr inż., Informatyka — Politechnika Warszawska (2013 - 2018)"
+    ]
 
 
 def test_tailor_cv_falls_back_to_profile_courses(
@@ -151,6 +155,50 @@ def test_tailor_cv_sets_language_and_present_label(
     )
     assert cv_pl.language == "pl"
     assert cv_pl.experiences[0].date_range.endswith("obecnie")
+
+
+def test_tailor_cv_education_keeps_profile_degree(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_profile,
+    sample_job,
+    sample_gap,
+) -> None:
+    payload = (
+        '{"headline": "Dev", "summary": "Summary.", "experiences": [], '
+        '"education_lines": ["Politechnika Warszawska"]}'
+    )
+    monkeypatch.setattr(tailor, "get_json_llm", lambda: FakeLLM(payload))
+    cv = tailor.tailor_cv(profile=sample_profile, job=sample_job, gap=sample_gap)
+    assert cv.education_lines == [
+        "mgr inż., Informatyka — Politechnika Warszawska (2013 - 2018)"
+    ]
+
+
+def test_tailor_cv_education_includes_full_degree_title(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_profile,
+    sample_job,
+    sample_gap,
+) -> None:
+    profile = sample_profile.model_copy(
+        update={
+            "education": [
+                Education(
+                    institution="Lodz University of Technology",
+                    degree="Bachelor of Science in Computer Science",
+                    start_date=date(2011, 1, 1),
+                    end_date=date(2015, 1, 1),
+                )
+            ]
+        }
+    )
+    payload = '{"headline": "Dev", "summary": "Summary.", "experiences": []}'
+    monkeypatch.setattr(tailor, "get_json_llm", lambda: FakeLLM(payload))
+    cv = tailor.tailor_cv(profile=profile, job=sample_job, gap=sample_gap)
+    assert cv.education_lines == [
+        "Bachelor of Science in Computer Science — Lodz University of Technology "
+        "(2011 - 2015)"
+    ]
 
 
 def test_rewrite_summary_returns_new_text(

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+from contextlib import suppress
 from datetime import date
 from html import unescape
 from typing import Any
@@ -20,14 +21,26 @@ import httpx
 
 from cv_generator.config import get_settings
 from cv_generator.models import Education, Experience, Profile
-from cv_generator.services.profile_merge import merge_profiles
+from cv_generator.services.profile_merge import (
+    education_match_index,
+    fill_education_entry,
+    merge_profiles,
+)
 
 __all__ = [
     "LinkedInUrlImportError",
     "merge_profiles",
+    "profile_from_linkedin_html",
     "profile_from_linkedin_url",
     "is_linkedin_profile_url",
 ]
+
+_MSG_BLOCKED_999 = (
+    "LinkedIn zablokował automatyczne pobieranie profilu (kod 999). "
+    "To ochrona antybotowa po stronie LinkedIn — nie da się jej obejść "
+    "z poziomu aplikacji. Otwórz profil w przeglądarce, zapisz stronę "
+    "jako HTML i wgraj plik poniżej, albo użyj oficjalnego eksportu ZIP."
+)
 
 
 class LinkedInUrlImportError(ValueError):
@@ -46,7 +59,7 @@ _MONTHS = {
 
 _DATE_RANGE_RE = re.compile(
     r"^(?P<start>(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}"
-    r"|\d{4})\s*-\s*(?P<end>(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
+    r"|\d{4})\s*[-–—]\s*(?P<end>(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
     r"\s+\d{4}|\d{4}|Present|Obecnie)$",
     re.IGNORECASE,
 )
@@ -91,6 +104,11 @@ def _details_projects_url(profile_url: str) -> str:
     return f"{base}/details/projects/"
 
 
+def _details_education_url(profile_url: str) -> str:
+    base = _profile_base_url(profile_url).rstrip("/")
+    return f"{base}/details/education/"
+
+
 def _is_masked(text: str | None) -> bool:
     if not text:
         return False
@@ -124,10 +142,7 @@ def _fetch_profile_html(url: str) -> str:
             if response.status_code == 999:
                 if _extract_json_ld_blocks(html) or _section_plain_text(html, "Projects"):
                     return html
-                raise LinkedInUrlImportError(
-                    "LinkedIn odrzucił żądanie (kod 999). Spróbuj ponownie za chwilę "
-                    "lub zaimportuj pełne dane z oficjalnego eksportu LinkedIn (ZIP)."
-                )
+                raise LinkedInUrlImportError(_MSG_BLOCKED_999)
             response.raise_for_status()
             return html
     except LinkedInUrlImportError:
@@ -190,7 +205,7 @@ def _parse_loose_date(raw: str | None) -> date | None:
 
 
 def _parse_date_range(raw: str) -> tuple[date | None, date | None, bool]:
-    text = raw.strip()
+    text = _normalize_date_text(raw)
     if not text or text == "-":
         return None, None, False
     if re.search(r"present|obecnie", text, re.IGNORECASE):
@@ -293,8 +308,21 @@ def _infer_company(project_name: str, description: str) -> str:
     return "Projekt"
 
 
+def _normalize_date_text(text: str) -> str:
+    return text.replace("–", "-").replace("—", "-").strip()
+
+
+def _looks_like_degree_title(text: str) -> bool:
+    return bool(_DEGREE_HINT_RE.search(text))
+
+
+def _looks_like_institution_name(text: str) -> bool:
+    return bool(_INSTITUTION_HINT_RE.search(text))
+
+
 def _is_date_line(line: str) -> bool:
-    return bool(_DATE_RANGE_RE.match(line) or _SINGLE_DATE_RE.match(line))
+    normalized = _normalize_date_text(line)
+    return bool(_DATE_RANGE_RE.match(normalized) or _SINGLE_DATE_RE.match(line.strip()))
 
 
 # Tailwind arbitrary variants (e.g. ``[&>*]:mb-0``) contain ``>`` inside attributes —
@@ -507,11 +535,71 @@ def _skills_from_courses_html(html: str) -> list[str]:
     return skills
 
 
+_JUNK_EDU_LINE_RE = re.compile(
+    r"(?i)(see all|show all|sign in|view profile|followers|contact info|"
+    r"join now|user agreement|forgot password|mutual connections)"
+)
+
+_INSTITUTION_HINT_RE = re.compile(
+    r"(?i)\b(university|uniwersytet|politechnik\w*|akademia|college|school|institute|technolog\w*)\b"
+)
+_DEGREE_HINT_RE = re.compile(
+    r"(?i)\b(inżynier|ingenieur|bachelor|master|mgr|licencjat|doktor|ph\.?d|"
+    r"m\.?sc|b\.?sc|engineer|diploma|magister|licencj)\b"
+)
+
+_EDU_HEADINGS = ("Education", "Wykształcenie", "Edukacja")
+_EDU_STOP_HEADINGS = (
+    "Experience",
+    "Projects",
+    "Courses",
+    "Languages",
+    "Skills",
+    "Licenses",
+    "Licences",
+    "Volunteer",
+    "Activity",
+    "People",
+    "Interests",
+    "About",
+    "View ",
+    "Explore ",
+)
+
+
+def _education_title_text(edu: Education) -> str:
+    return f"{edu.degree or ''} {edu.field_of_study or ''}".strip()
+
+
+def _degree_from_edu_item(item: dict[str, Any]) -> str | None:
+    institution = str(item.get("name") or "").strip().lower()
+    role = item.get("member") if isinstance(item.get("member"), dict) else {}
+    for source in (role, item):
+        for key in ("roleName", "description", "credentialCategory"):
+            value = source.get(key)
+            if not isinstance(value, str):
+                continue
+            text = value.strip()
+            if not text or _is_masked(text) or text.lower() == institution:
+                continue
+            if _is_date_line(text) or _JUNK_EDU_LINE_RE.search(text):
+                continue
+            return text
+    return None
+
+
+def _alumni_items(person: dict[str, Any]) -> list[dict[str, Any]]:
+    raw = person.get("alumniOf") or []
+    if isinstance(raw, dict):
+        return [raw]
+    if isinstance(raw, list):
+        return [item for item in raw if isinstance(item, dict)]
+    return []
+
+
 def _education_from_person(person: dict[str, Any]) -> list[Education]:
     out: list[Education] = []
-    for item in person.get("alumniOf") or []:
-        if not isinstance(item, dict):
-            continue
+    for item in _alumni_items(person):
         institution = str(item.get("name") or "").strip()
         if not institution or _is_masked(institution):
             continue
@@ -519,10 +607,140 @@ def _education_from_person(person: dict[str, Any]) -> list[Education]:
         out.append(
             Education(
                 institution=institution,
+                degree=_degree_from_edu_item(item),
                 start_date=_schema_date(role.get("startDate")),
                 end_date=_schema_date(role.get("endDate")),
             )
         )
+    return out
+
+
+def _education_html_slice(html: str) -> str:
+    for heading in _EDU_HEADINGS:
+        match = re.search(
+            r"(?is)<h2\b(?:[^>\"']|\"[^\"]*\"|'[^']*')*>"
+            r"(?:(?!</h2>).)*?" + re.escape(heading) + r"\b"
+            r"(?:(?!</h2>).)*?</h2>"
+            r"(.*?)(?=<h2\b|</section>|$)",
+            html,
+        )
+        if match:
+            return match.group(1)
+        text = _section_plain_text(html, heading, stop_headings=_EDU_STOP_HEADINGS)
+        if text:
+            return text
+    return ""
+
+
+def _is_junk_edu_line(line: str) -> bool:
+    if not line or len(line) > 180:
+        return True
+    if _JUNK_EDU_LINE_RE.search(line):
+        return True
+    if re.search(r"text-\[\d+px\]|\*\]:mb-0|font-semibold\">", line):
+        return True
+    return _is_junk_project_entry(line, "")
+
+
+def _education_from_h3_html(html: str) -> list[Education]:
+    out: list[Education] = []
+    h3_matches = list(_H3_BLOCK_RE.finditer(html))
+    for index, match in enumerate(h3_matches):
+        heading = _clean_project_title(match.group(2))
+        if not heading or _is_masked(heading) or _is_junk_edu_line(heading):
+            continue
+        if heading.lower() in {h.lower() for h in _EDU_HEADINGS}:
+            continue
+        next_start = h3_matches[index + 1].start() if index + 1 < len(h3_matches) else len(html)
+        body = _html_to_plain(html[match.end() : next_start]).strip()
+        lines = [ln.strip() for ln in body.splitlines() if ln.strip()]
+        date_line = ""
+        degree_line = ""
+        institution = heading
+
+        if _looks_like_degree_title(heading) and not _looks_like_institution_name(heading):
+            degree_line = heading
+            institution = ""
+            for line in lines:
+                if _is_date_line(line):
+                    if not date_line:
+                        date_line = line
+                    continue
+                if not institution and not _is_junk_edu_line(line):
+                    institution = line
+            if not institution:
+                continue
+        else:
+            for line in lines:
+                if _is_date_line(line):
+                    if not date_line:
+                        date_line = line
+                    continue
+                if not degree_line and not _is_junk_edu_line(line):
+                    degree_line = line
+        start, end, _is_current = _parse_date_range(date_line) if date_line else (None, None, False)
+        out.append(
+            Education(
+                institution=institution,
+                degree=degree_line or None,
+                start_date=start,
+                end_date=end,
+            )
+        )
+    return out
+
+
+def _education_from_plain_text(section_text: str) -> list[Education]:
+    skip = {h.lower() for h in _EDU_HEADINGS} | {"see all", "show all"}
+    lines = [ln.strip() for ln in section_text.splitlines() if ln.strip()]
+    out: list[Education] = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if line.lower() in skip or _is_date_line(line) or _is_junk_edu_line(line):
+            index += 1
+            continue
+        institution = line
+        index += 1
+        degree_line = ""
+        date_line = ""
+        if index < len(lines) and not _is_date_line(lines[index]):
+            nxt = lines[index]
+            if not _is_junk_edu_line(nxt):
+                degree_line = nxt
+                index += 1
+        if index < len(lines) and _is_date_line(lines[index]):
+            date_line = lines[index]
+            index += 1
+        start, end, _is_current = _parse_date_range(date_line) if date_line else (None, None, False)
+        out.append(
+            Education(
+                institution=institution,
+                degree=degree_line or None,
+                start_date=start,
+                end_date=end,
+            )
+        )
+    return out
+
+
+def _education_from_html(html: str) -> list[Education]:
+    section = _education_html_slice(html)
+    if not section:
+        return []
+    if re.search(r"<h3\b", section, re.IGNORECASE):
+        return _education_from_h3_html(section)
+    return _education_from_plain_text(_html_to_plain(section) if "<" in section else section)
+
+
+def _merge_education(base: list[Education], extra: list[Education]) -> list[Education]:
+    out = list(base)
+    for edu in extra:
+        idx = education_match_index(out, edu)
+        if idx is None:
+            out.append(edu)
+        else:
+            out[idx] = fill_education_entry(out[idx], edu)
     return out
 
 
@@ -604,6 +822,7 @@ def _profile_from_person(
     html: str,
     experiences: list[Experience],
     skills: list[str],
+    education: list[Education] | None = None,
 ) -> Profile:
     full_name = str(person.get("name") or "").strip() or "—"
     if _is_masked(full_name):
@@ -624,45 +843,59 @@ def _profile_from_person(
         location=_location_from_address(person.get("address")),
         linkedin_url=linkedin_url or source_url,
         experiences=experiences,
-        education=_education_from_person(person),
+        education=education if education is not None else _education_from_person(person),
         skills=skills,
         languages=_languages_from_person(person),
     )
 
 
-def profile_from_linkedin_url(url: str) -> Profile:
-    """Fetch a public LinkedIn profile and build a :class:`Profile`.
+def _source_url_from_html(html: str, fallback: str) -> str:
+    person = _person_entity(_extract_json_ld_blocks(html))
+    if person:
+        for key in ("sameAs", "url"):
+            raw = str(person.get(key) or "").strip()
+            if raw:
+                candidate = _profile_base_url(raw)
+                if _LINKEDIN_PROFILE_RE.match(candidate):
+                    return candidate
+    match = re.search(
+        r'<meta[^>]+property="og:url"[^>]+content="([^"]+)"',
+        html,
+        flags=re.IGNORECASE,
+    )
+    if match:
+        candidate = _profile_base_url(match.group(1))
+        if _LINKEDIN_PROFILE_RE.match(candidate):
+            return candidate
+    return fallback
 
-    Reads schema.org JSON-LD from the main profile page and project history
-    from ``/details/projects/``. Masked guest-only fields (asterisks) are
-    ignored. For complete data use the official LinkedIn export.
-    """
-    base_url = _profile_base_url(url)
-    if not _LINKEDIN_PROFILE_RE.match(base_url):
-        raise LinkedInUrlImportError(
-            "Podaj poprawny URL profilu LinkedIn, np. "
-            "https://www.linkedin.com/in/jan-kowalski/"
-        )
 
-    html_main = _fetch_profile_html(base_url)
+def _build_profile_from_pages(
+    *,
+    source_url: str,
+    html_main: str,
+    projects_html: str = "",
+    education_html: str = "",
+) -> Profile:
     blocks = _extract_json_ld_blocks(html_main)
     person = _person_entity(blocks)
+    projects_source = projects_html or html_main
 
-    projects_html = ""
-    try:
-        projects_html = _fetch_profile_html(_details_projects_url(base_url))
-    except LinkedInUrlImportError:
-        projects_html = html_main
-
-    experiences = _experiences_from_projects_html(projects_html)
-    if not experiences:
+    experiences = _experiences_from_projects_html(projects_source)
+    if not experiences and projects_source != html_main:
         experiences = _experiences_from_projects_html(html_main)
     if not experiences:
         experiences = _experiences_from_person(person or {})
 
-    skills = _skills_from_courses_html(projects_html or html_main)
+    skills = _skills_from_courses_html(projects_source)
+    education = _merge_education(
+        _education_from_person(person or {}),
+        _education_from_html(html_main),
+    )
+    if education_html:
+        education = _merge_education(education, _education_from_html(education_html))
 
-    if person is None and not experiences and not skills:
+    if person is None and not experiences and not skills and not education:
         raise LinkedInUrlImportError(
             "Na stronie profilu nie znaleziono publicznych danych. "
             "Profil może być prywatny lub wymagać logowania — użyj eksportu LinkedIn."
@@ -673,10 +906,11 @@ def profile_from_linkedin_url(url: str) -> Profile:
 
     profile = _profile_from_person(
         person,
-        source_url=base_url,
+        source_url=source_url,
         html=html_main,
         experiences=experiences,
         skills=skills,
+        education=education,
     )
     if (
         _is_placeholder(profile.full_name)
@@ -685,6 +919,71 @@ def profile_from_linkedin_url(url: str) -> Profile:
         and not profile.skills
     ):
         raise LinkedInUrlImportError(
-            "Nie udało się odczytać danych profilu z podanego URL."
+            "Nie udało się odczytać danych profilu z podanej strony."
         )
     return profile
+
+
+def profile_from_linkedin_html(html: str, *, source_url: str | None = None) -> Profile:
+    """Build a :class:`Profile` from LinkedIn profile HTML saved in a browser.
+
+    Use when LinkedIn blocks automated URL fetches (HTTP 999). Open the public
+    profile (and optionally ``/details/projects/``) in a browser, save the page
+    as HTML, then pass the file contents here.
+    """
+    text = html.strip()
+    if not text:
+        raise LinkedInUrlImportError("Plik HTML jest pusty.")
+
+    fallback = "https://www.linkedin.com/in/imported/"
+    if source_url:
+        candidate = _profile_base_url(source_url)
+        if _LINKEDIN_PROFILE_RE.match(candidate):
+            fallback = candidate
+    resolved = _source_url_from_html(text, fallback)
+    return _build_profile_from_pages(
+        source_url=resolved,
+        html_main=text,
+        projects_html=text,
+        education_html="",
+    )
+
+
+def profile_from_linkedin_url(url: str) -> Profile:
+    """Fetch a public LinkedIn profile and build a :class:`Profile`.
+
+    Reads schema.org JSON-LD from the main profile page and project history
+    from ``/details/projects/``. Education titles (degree / field of study)
+    are taken from the public Education section when JSON-LD omits them.
+    Masked guest-only fields (asterisks) are ignored. For complete data use
+    the official LinkedIn export or a browser-saved HTML page.
+    """
+    base_url = _profile_base_url(url)
+    if not _LINKEDIN_PROFILE_RE.match(base_url):
+        raise LinkedInUrlImportError(
+            "Podaj poprawny URL profilu LinkedIn, np. "
+            "https://www.linkedin.com/in/jan-kowalski/"
+        )
+
+    html_main = _fetch_profile_html(base_url)
+
+    projects_html = html_main
+    with suppress(LinkedInUrlImportError):
+        projects_html = _fetch_profile_html(_details_projects_url(base_url))
+
+    education_html = ""
+    person = _person_entity(_extract_json_ld_blocks(html_main))
+    education_seed = _merge_education(
+        _education_from_person(person or {}),
+        _education_from_html(html_main),
+    )
+    if education_seed and any(not _education_title_text(item) for item in education_seed):
+        with suppress(LinkedInUrlImportError):
+            education_html = _fetch_profile_html(_details_education_url(base_url))
+
+    return _build_profile_from_pages(
+        source_url=base_url,
+        html_main=html_main,
+        projects_html=projects_html,
+        education_html=education_html,
+    )
