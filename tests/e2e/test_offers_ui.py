@@ -83,17 +83,20 @@ def _open_filters_expander(offers_panel) -> None:
     expect(details).to_have_js_property("open", True, timeout=5_000)
 
 
-def _toggle_offers_checkbox(offers_panel, label: str) -> None:
-    """Toggle a Streamlit checkbox inside the offers 'Filtry i źródła' expander.
+def _set_offers_checkbox(offers_panel, label: str, *, checked: bool) -> None:
+    """Set a Streamlit checkbox inside the offers 'Filtry i źródła' expander.
 
     Streamlit wraps each checkbox in a react-aria ``<label>`` that intercepts
     pointer events aimed at the input, so we click the checkbox with
-    ``force=True`` after opening the expander.
+    ``force=True`` after opening the expander. The target state is enforced
+    explicitly because prior tests may leave widgets in an unexpected state.
     """
     _open_filters_expander(offers_panel)
     checkbox = offers_panel.get_by_role("checkbox", name=label)
     expect(checkbox).to_be_visible(timeout=10_000)
-    checkbox.click(force=True)
+    if checkbox.is_checked() != checked:
+        checkbox.click(force=True)
+    expect(checkbox).to_be_checked(checked=checked, timeout=15_000)
 
 
 def test_offers_tab_requires_profile(page: Page, streamlit_url: str) -> None:
@@ -289,10 +292,16 @@ def test_offers_tab_shows_and_toggles_inactive_offers(
     expect(offers_panel.get_by_text("Ghost Python Role", exact=False)).to_be_visible()
     expect(offers_panel.get_by_text("wyszarzona", exact=False).first).to_be_visible()
 
-    _toggle_offers_checkbox(offers_panel, "Pokaż oferty nieaktywne (wyszarzone)")
+    _set_offers_checkbox(
+        offers_panel,
+        "Pokaż oferty nieaktywne (wyszarzone)",
+        checked=False,
+    )
 
-    expect(offers_panel.get_by_text("Ghost Python Role", exact=False)).to_have_count(0)
-    expect(offers_panel.get_by_text("Active Python Role", exact=False)).to_be_visible()
+    expect(offers_panel.get_by_role("heading", name="Ghost Python Role")).to_have_count(
+        0, timeout=15_000
+    )
+    expect(offers_panel.get_by_role("heading", name="Active Python Role")).to_be_visible()
 
 
 def test_offers_tab_download_button_appears_when_cv_already_exists(
@@ -393,15 +402,16 @@ def test_offers_tab_source_filter_hides_unselected_portals(
     open_tab(page, "Oferty")
     offers_panel = page.get_by_role("tabpanel", name="Oferty")
 
-    expect(offers_panel.get_by_text("JJIT Python Role", exact=False)).to_be_visible(
-        timeout=15_000
-    )
-    expect(offers_panel.get_by_text("NFJ Python Role", exact=False)).to_be_visible()
+    jjit_heading = offers_panel.get_by_role("heading").filter(has_text="JJIT Python Role")
+    nfj_heading = offers_panel.get_by_role("heading").filter(has_text="NFJ Python Role")
 
-    _toggle_offers_checkbox(offers_panel, "No Fluff Jobs")
+    expect(jjit_heading).to_have_count(1, timeout=15_000)
+    expect(nfj_heading).to_have_count(1)
 
-    expect(offers_panel.get_by_text("NFJ Python Role", exact=False)).to_have_count(0)
-    expect(offers_panel.get_by_text("JJIT Python Role", exact=False)).to_be_visible()
+    _set_offers_checkbox(offers_panel, "No Fluff Jobs", checked=False)
+
+    expect(nfj_heading).to_have_count(0, timeout=15_000)
+    expect(jjit_heading).to_have_count(1, timeout=15_000)
 
 
 def test_offers_tab_hides_old_and_non_keyword_offers(
@@ -485,14 +495,16 @@ def test_offers_tab_keyword_field_filters_visible_list(
     )
 
     _open_filters_expander(offers_panel)
-    keywords = offers_panel.get_by_label("Słowa kluczowe (oddzielone przecinkami)")
+    keywords = offers_panel.get_by_role(
+        "textbox", name="Słowa kluczowe (oddzielone przecinkami)"
+    )
     expect(keywords).to_be_visible()
     keywords.fill("Erlang")
-    keywords.press("Enter")
+    keywords.press("Tab")
 
     expect(offers_panel.get_by_role("heading", name="Senior Python Engineer")).to_have_count(
         0, timeout=15_000
     )
     expect(
         offers_panel.get_by_text("pasujących do słów kluczowych", exact=False)
-    ).to_be_visible()
+    ).to_be_visible(timeout=15_000)

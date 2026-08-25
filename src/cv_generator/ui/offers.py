@@ -84,7 +84,7 @@ def render_offers_tab() -> None:
         )
         return
 
-    keywords = _keywords_from_session()
+    keywords = _keywords_from_session(profile)
     if not keywords:
         st.warning(
             "Podaj słowa kluczowe — lista pokazuje tylko oferty z dzisiaj "
@@ -112,9 +112,10 @@ def render_offers_tab() -> None:
 
 def _render_query_form(profile: Profile) -> None:
     default_keywords = ", ".join(top_profile_keywords(profile))
+    if "offers_keywords" not in st.session_state:
+        st.session_state.offers_keywords = default_keywords
     st.text_input(
         "Słowa kluczowe (oddzielone przecinkami)",
-        value=st.session_state.get("offers_keywords", default_keywords),
         key="offers_keywords",
         help=(
             "Oferta musi zawierać przynajmniej jedno ze słów (tytuł lub skills). "
@@ -145,14 +146,17 @@ def _render_source_filters() -> list[BoardSource]:
     return selected
 
 
-def _keywords_from_session() -> list[str]:
+def _keywords_from_session(profile: Profile | None = None) -> list[str]:
     raw = st.session_state.get("offers_keywords", "") or ""
-    return [k.strip() for k in raw.split(",") if k.strip()]
+    keywords = [k.strip() for k in raw.split(",") if k.strip()]
+    if not keywords and profile is not None:
+        return top_profile_keywords(profile)
+    return keywords
 
 
-def _build_query() -> BoardQuery:
+def _build_query(profile: Profile) -> BoardQuery:
     settings = get_settings()
-    keywords = _keywords_from_session()
+    keywords = _keywords_from_session(profile)
     city = (st.session_state.get("offers_city") or "").strip() or None
     remote = bool(st.session_state.get("offers_remote_only", False))
     return BoardQuery(
@@ -167,7 +171,7 @@ def _run_refresh(profile: Profile, sources: list[BoardSource]) -> None:
     if not sources:
         st.warning("Zaznacz przynajmniej jeden portal.")
         return
-    query = _build_query()
+    query = _build_query(profile)
     service = BoardFetchService(storage=storage())
     with st.spinner("Pobieram oferty z portali (równolegle)..."):
         try:
