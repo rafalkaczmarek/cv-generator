@@ -180,9 +180,12 @@ def import_linkedin_url(page: Page, url: str) -> None:
 def import_linkedin_file(page: Page, file_path: Path) -> None:
     open_tab(page, "Profil")
     _open_details(page, "Importuj z eksportu LinkedIn")
-    page.locator('[data-testid="stFileUploaderDropzone"] input[type="file"]').set_input_files(
-        str(file_path)
+    # Scope to the ZIP/CSV expander — the URL-import panel also has a file input (HTML).
+    summary = page.locator("summary").filter(has_text="Importuj z eksportu LinkedIn")
+    export_panel = summary.locator("xpath=ancestor::details[1]").locator(
+        '[data-testid="stExpanderDetails"]'
     )
+    export_panel.locator('input[type="file"]').set_input_files(str(file_path))
     # File upload triggers a Streamlit rerun; the expander may collapse briefly.
     button = page.get_by_role("button", name="Wczytaj dane z LinkedIn")
     last_error: Exception | None = None

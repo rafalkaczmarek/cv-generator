@@ -124,7 +124,7 @@ def test_linkedin_education_csv_import_fills_degree_and_field(
 
 
 def test_linkedin_education_csv_blank_school_fills_degree_into_existing(
-    page: Page, streamlit_url: str
+    page: Page, streamlit_url: str, tmp_path: Path
 ) -> None:
     """Real LinkedIn exports may omit School Name while still providing Degree Name."""
     goto_app(page, streamlit_url)
@@ -142,7 +142,10 @@ def test_linkedin_education_csv_blank_school_fills_degree_into_existing(
     page.get_by_role("button", name="Tylko ustaw w sesji (bez zapisu)").click()
     expect(page.get_by_text("Profil ustawiony.")).to_be_visible(timeout=15_000)
 
-    import_linkedin_file(page, EDUCATION_BLANK_SCHOOL_CSV)
+    # Importer keys off the upload filename — must be Education.csv, not a fixture alias.
+    blank_school_csv = tmp_path / "Education.csv"
+    blank_school_csv.write_bytes(EDUCATION_BLANK_SCHOOL_CSV.read_bytes())
+    import_linkedin_file(page, blank_school_csv)
 
     expect(
         page.locator("summary").filter(has_text="Lodz University of Technology")
