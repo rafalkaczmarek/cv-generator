@@ -33,6 +33,7 @@ from tests.e2e.helpers import (
     run_full_generation_flow,
     run_generation_pipeline,
     set_profile_in_session,
+    wait_for_streamlit_idle,
 )
 
 pytestmark = pytest.mark.e2e
@@ -313,6 +314,9 @@ def test_preview_edit_persists_before_export(page: Page, streamlit_url: str) -> 
     preview = page.get_by_role("tabpanel", name="Podgląd")
     preview.get_by_label("Headline").fill("Lead Python Engineer for GammaTech")
     preview.get_by_label("Podsumowanie").fill("Custom summary before export.")
+    # Commit widget values and let Streamlit finish before switching tabs.
+    preview.get_by_label("Podsumowanie").press("Tab")
+    wait_for_streamlit_idle(page)
 
     export_docx(page)
 

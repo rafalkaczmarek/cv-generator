@@ -31,9 +31,35 @@ def goto_app(page: Page, streamlit_url: str) -> None:
     expect(page.get_by_role("heading", name="CV Generator")).to_be_visible(timeout=30_000)
 
 
+def wait_for_streamlit_idle(page: Page, *, timeout_ms: float = 15_000) -> None:
+    """Wait until Streamlit finishes a script rerun (status widget disappears)."""
+    status = page.locator('[data-testid="stStatusWidget"]')
+    try:
+        status.first.wait_for(state="visible", timeout=500)
+    except PlaywrightTimeoutError:
+        return
+    status.first.wait_for(state="hidden", timeout=timeout_ms)
+
+
 def open_tab(page: Page, tab_name: str) -> None:
-    page.get_by_role("tab", name=tab_name).click()
-    expect(page.get_by_role("tab", name=tab_name)).to_have_attribute("aria-selected", "true")
+    """Activate a top-level tab, retrying through Streamlit reruns that disable tabs."""
+    tab = page.get_by_role("tab", name=tab_name)
+    expect(tab).to_be_visible(timeout=15_000)
+    last_error: Exception | None = None
+    for _ in range(6):
+        wait_for_streamlit_idle(page)
+        if tab.get_attribute("aria-disabled") == "true":
+            page.wait_for_timeout(200)
+            continue
+        tab.click()
+        try:
+            expect(tab).to_have_attribute("aria-selected", "true", timeout=2_000)
+            return
+        except AssertionError as exc:
+            last_error = exc
+            wait_for_streamlit_idle(page)
+    assert last_error is not None
+    raise last_error
 
 
 def fill_minimal_profile(page: Page) -> None:
