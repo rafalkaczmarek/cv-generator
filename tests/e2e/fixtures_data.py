@@ -24,6 +24,13 @@ E2E_EDUCATION_LINE = (
 )
 E2E_BLANK_SCHOOL_DEGREE = "Bachelor of Engineering"
 
+# Dates from tests/e2e/fixtures/Projects.csv after LinkedIn import + tailor fill (EN).
+E2E_PROJECT_DATE_RANGES_EN = {
+    "CV Generator": "01/2024 - Present",
+    "Mid App": "06/2021 - 12/2022",
+    "Legacy Portal": "03/2019 - 12/2020",
+}
+
 
 def build_linkedin_zip(path: Path) -> Path:
     """Write a minimal LinkedIn export archive for file-upload tests."""

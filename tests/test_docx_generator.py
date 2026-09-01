@@ -135,6 +135,8 @@ def test_render_cv_omits_projekt_company_suffix(sample_tailored_cv, tmp_path: Pa
     assert "Pekao website — Projekt" not in text
     assert "— Projekt" not in text
     assert "Senior Backend Engineer — Acme Corp" in text
+    assert "01/2020 - 06/2020" in text
+    assert "01/2021 - obecnie" in text
 
 
 def test_render_cv_includes_courses_section(sample_tailored_cv, tmp_path: Path) -> None:

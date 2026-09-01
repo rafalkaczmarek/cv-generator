@@ -305,6 +305,18 @@ def apply_import_conflict_choice(
     )
 
 
+def expect_preview_experience_okres(page: Page, heading: str, date_range: str) -> None:
+    """Open a preview experience expander and assert the ``Okres`` field."""
+    preview = page.get_by_role("tabpanel", name="Podgląd")
+    summary = preview.locator("summary").filter(has_text=heading)
+    expect(summary).to_be_visible(timeout=15_000)
+    details = summary.locator("xpath=ancestor::details[1]")
+    if details.get_attribute("open") is None:
+        summary.click()
+    expect(details).to_have_js_property("open", True, timeout=5_000)
+    expect(details.get_by_label("Okres")).to_have_value(date_range)
+
+
 def run_full_generation_flow(page: Page) -> None:
     set_profile_in_session(page)
     analyze_pasted_job_offer(page)

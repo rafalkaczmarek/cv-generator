@@ -11,8 +11,11 @@ from datetime import date
 from langchain_core.prompts import ChatPromptTemplate
 
 from cv_generator.graph.state import GapAnalysis
-from cv_generator.models import JobOffer, Profile, TailoredCV, TailoredExperience
+from cv_generator.models import Experience, JobOffer, Profile, TailoredCV, TailoredExperience
 from cv_generator.services.llm import get_json_llm, get_llm, parse_llm_json
+
+# LinkedIn import uses 1900-01-01 when a date could not be parsed.
+_UNKNOWN_YEAR = 1900
 
 _SYSTEM = (
     "You are an expert resume writer tailoring an existing profile to a specific "
@@ -25,7 +28,8 @@ _SYSTEM = (
     "5. Include EVERY experience entry from the profile in experiences — jobs and "
     "projects alike. Do not omit, merge, or drop any. You may reorder by relevance "
     "and rewrite bullets, but the count and identity (company + title + dates) of "
-    "each entry must be preserved.\n"
+    "each entry must be preserved. Always set date_range from profile start_date/"
+    "end_date for every entry, including projects (company Projekt/Project).\n"
     "6. Do not output education — it is copied verbatim from the profile.\n"
     "7. Output language: {language}.\n"
     "Reply with valid JSON only."
@@ -142,16 +146,27 @@ def rewrite_summary(
 
 def _build_tailored_cv(parsed: dict, profile: Profile, *, language: str = "en") -> TailoredCV:
     experiences_raw = parsed.get("experiences") or []
+    unused = list(profile.experiences)
     experiences: list[TailoredExperience] = []
     for item in experiences_raw:
         if not isinstance(item, dict):
             continue
+        matched = _pop_matching_experience(item, unused)
+        date_range = (
+            _format_date_range(
+                matched.start_date, matched.end_date, matched.is_current, language=language
+            )
+            if matched
+            else ""
+        )
+        if not date_range:
+            date_range = str(item.get("date_range") or "")
         experiences.append(
             TailoredExperience(
                 company=str(item.get("company") or ""),
                 title=str(item.get("title") or ""),
-                location=item.get("location"),
-                date_range=str(item.get("date_range") or ""),
+                location=item.get("location") or (matched.location if matched else None),
+                date_range=date_range,
                 bullets=[str(b) for b in (item.get("bullets") or []) if str(b).strip()],
             )
         )
@@ -180,7 +195,7 @@ def _build_tailored_cv(parsed: dict, profile: Profile, *, language: str = "en") 
     )
 
 
-def _fallback_experience(exp, *, language: str = "en") -> TailoredExperience:
+def _fallback_experience(exp: Experience, *, language: str = "en") -> TailoredExperience:
     return TailoredExperience(
         company=exp.company,
         title=exp.title,
@@ -192,6 +207,27 @@ def _fallback_experience(exp, *, language: str = "en") -> TailoredExperience:
     )
 
 
+def _norm_key(value: str) -> str:
+    return value.strip().casefold()
+
+
+def _pop_matching_experience(item: dict, unused: list[Experience]) -> Experience | None:
+    """Pop the profile experience that corresponds to an LLM experience object."""
+    company = _norm_key(str(item.get("company") or ""))
+    title = _norm_key(str(item.get("title") or ""))
+    if not company and not title:
+        return None
+
+    for index, exp in enumerate(unused):
+        if _norm_key(exp.company) == company and _norm_key(exp.title) == title:
+            return unused.pop(index)
+
+    title_hits = [i for i, exp in enumerate(unused) if title and _norm_key(exp.title) == title]
+    if len(title_hits) == 1:
+        return unused.pop(title_hits[0])
+    return None
+
+
 def _format_date_range(
     start: date,
     end: date | None,
@@ -199,11 +235,14 @@ def _format_date_range(
     *,
     language: str = "en",
 ) -> str:
-    start_str = start.strftime("%m/%Y")
-    if is_current or end is None:
+    start_str = start.strftime("%m/%Y") if start.year > _UNKNOWN_YEAR else ""
+    end_str = end.strftime("%m/%Y") if end is not None and end.year > _UNKNOWN_YEAR else ""
+    if is_current:
         present = "obecnie" if language.lower().startswith("pl") else "Present"
-        return f"{start_str} - {present}"
-    return f"{start_str} - {end.strftime('%m/%Y')}"
+        return f"{start_str} - {present}" if start_str else present
+    if start_str and end_str:
+        return f"{start_str} - {end_str}"
+    return start_str or end_str
 
 
 def _education_title(edu) -> str | None:

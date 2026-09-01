@@ -7,7 +7,7 @@ from datetime import date
 import pytest
 
 from cv_generator.agents import tailor
-from cv_generator.models import Education, TailoredCV
+from cv_generator.models import Education, Experience, TailoredCV
 from tests.fake_llm import FakeLLM
 
 
@@ -253,3 +253,132 @@ def test_rewrite_summary_uses_plain_llm_for_anthropic(
         current_summary="Old.",
     )
     assert summary == "Anthropic rewrite."
+
+
+def test_tailor_cv_fills_project_date_range_from_profile(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_profile,
+    sample_job,
+    sample_gap,
+) -> None:
+    profile = sample_profile.model_copy(
+        update={
+            "experiences": [
+                *sample_profile.experiences,
+                Experience(
+                    company="Projekt",
+                    title="Pekao website",
+                    start_date=date(2019, 8, 1),
+                    end_date=date(2020, 6, 1),
+                ),
+                Experience(
+                    company="Projekt",
+                    title="CV Generator",
+                    start_date=date(2024, 1, 1),
+                    is_current=True,
+                ),
+            ]
+        }
+    )
+    payload = (
+        '{"headline": "Dev", "summary": "Summary.", "experiences": ['
+        '{"company": "Acme Corp", "title": "Senior Backend Engineer", "bullets": ["API"]},'
+        '{"company": "Projekt", "title": "Pekao website", "bullets": ["Frontend"]},'
+        '{"company": "Projekt", "title": "CV Generator", "bullets": ["Generator"]}'
+        "]}"
+    )
+    monkeypatch.setattr(tailor, "get_json_llm", lambda: FakeLLM(payload))
+    cv = tailor.tailor_cv(
+        profile=profile, job=sample_job, gap=sample_gap, language="pl"
+    )
+    by_title = {exp.title: exp.date_range for exp in cv.experiences}
+    assert by_title["Pekao website"] == "08/2019 - 06/2020"
+    assert by_title["CV Generator"] == "01/2024 - obecnie"
+    assert by_title["Senior Backend Engineer"] == "01/2021 - obecnie"
+    pekao = next(exp for exp in cv.experiences if exp.title == "Pekao website")
+    assert pekao.heading == "Pekao website"
+
+
+def test_tailor_cv_formats_current_project_as_present_in_english(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_profile,
+    sample_job,
+    sample_gap,
+) -> None:
+    profile = sample_profile.model_copy(
+        update={
+            "experiences": [
+                Experience(
+                    company="Projekt",
+                    title="CV Generator",
+                    start_date=date(2024, 1, 1),
+                    is_current=True,
+                )
+            ]
+        }
+    )
+    payload = (
+        '{"headline": "Dev", "summary": "Summary.", "experiences": ['
+        '{"company": "Projekt", "title": "CV Generator", "bullets": ["Generator"]}]}'
+    )
+    monkeypatch.setattr(tailor, "get_json_llm", lambda: FakeLLM(payload))
+    cv = tailor.tailor_cv(
+        profile=profile, job=sample_job, gap=sample_gap, language="en"
+    )
+    assert cv.experiences[0].date_range == "01/2024 - Present"
+
+
+def test_tailor_cv_keeps_llm_dates_when_profile_date_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_profile,
+    sample_job,
+    sample_gap,
+) -> None:
+    profile = sample_profile.model_copy(
+        update={
+            "experiences": [
+                Experience(
+                    company="Projekt",
+                    title="Undated App",
+                    start_date=date(1900, 1, 1),
+                )
+            ]
+        }
+    )
+    payload = (
+        '{"headline": "Dev", "summary": "Summary.", "experiences": ['
+        '{"company": "Projekt", "title": "Undated App", '
+        '"date_range": "2018 - 2019", "bullets": ["Work"]}]}'
+    )
+    monkeypatch.setattr(tailor, "get_json_llm", lambda: FakeLLM(payload))
+    cv = tailor.tailor_cv(profile=profile, job=sample_job, gap=sample_gap, language="en")
+    assert cv.experiences[0].date_range == "2018 - 2019"
+
+
+def test_tailor_cv_fills_project_dates_when_llm_company_differs(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_profile,
+    sample_job,
+    sample_gap,
+) -> None:
+    profile = sample_profile.model_copy(
+        update={
+            "experiences": [
+                *sample_profile.experiences,
+                Experience(
+                    company="Projekt",
+                    title="Pekao website",
+                    start_date=date(2019, 8, 1),
+                    end_date=date(2020, 6, 1),
+                ),
+            ]
+        }
+    )
+    payload = (
+        '{"headline": "Dev", "summary": "Summary.", "experiences": ['
+        '{"company": "Bank Pekao S.A.", "title": "Pekao website", '
+        '"date_range": "", "bullets": ["Frontend"]}]}'
+    )
+    monkeypatch.setattr(tailor, "get_json_llm", lambda: FakeLLM(payload))
+    cv = tailor.tailor_cv(profile=profile, job=sample_job, gap=sample_gap, language="en")
+    assert cv.experiences[0].date_range == "08/2019 - 06/2020"

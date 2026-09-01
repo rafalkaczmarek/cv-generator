@@ -31,6 +31,7 @@ from tests.e2e.fixtures_data import (
     E2E_EDUCATION_FIELD,
     E2E_EDUCATION_INSTITUTION,
     E2E_EDUCATION_LINE,
+    E2E_PROJECT_DATE_RANGES_EN,
     EDUCATION_CSV,
     POSITIONS_CSV,
     PROFILE_CSV,
@@ -102,6 +103,38 @@ def test_stub_llm_job_analysis_and_pipeline(
     assert any(exp.company == "Acme Corp" for exp in cv.experiences)
     assert "AWS Certified Developer" in cv.courses
     assert cv.education_lines == [E2E_EDUCATION_LINE]
+
+
+def test_stub_pipeline_fills_project_dates_from_linkedin_zip(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    templates = tmp_path / "templates"
+    templates.mkdir()
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("APP_OUTPUT_DIR", str(tmp_path / "output"))
+    monkeypatch.setenv("APP_TEMPLATES_DIR", str(templates))
+    monkeypatch.setenv("LLM_PROVIDER", "stub")
+    monkeypatch.setenv("CV_GENERATOR_IGNORE_ENV_FILE", "1")
+
+    zip_path = build_linkedin_zip(tmp_path / "export.zip")
+    profile = profile_from_linkedin_zip(zip_path)
+    offer = analyze_job(url=None, raw_text="Senior Python Engineer at GammaTech.")
+    cv = generate_cv(profile, offer, language="en")
+
+    by_title = {exp.title: exp for exp in cv.experiences}
+    for title, date_range in E2E_PROJECT_DATE_RANGES_EN.items():
+        assert by_title[title].date_range == date_range
+        assert by_title[title].heading == title
+        assert by_title[title].company == "Projekt"
+
+    ensure_builtin_templates(templates)
+    path = render_cv(cv, template_id="cv_template.docx", filename="cv_projects.docx")
+    text = "\n".join(p.text for p in Document(path).paragraphs)
+    for title, date_range in E2E_PROJECT_DATE_RANGES_EN.items():
+        assert title in text
+        assert date_range in text
+        assert f"{title} — Projekt" not in text
 
 
 def test_analyze_job_requires_input(monkeypatch: pytest.MonkeyPatch) -> None:
