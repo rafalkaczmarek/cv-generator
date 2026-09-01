@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import streamlit as st
 
 from cv_generator.agents.gap_analyzer import analyze_gap
@@ -10,6 +12,8 @@ from cv_generator.agents.validator import validate
 from cv_generator.models import JobOffer, Profile, TailoredCV, TailoredExperience
 from cv_generator.ui.llm import format_llm_error
 from cv_generator.ui.state import ss_get
+
+logger = logging.getLogger(__name__)
 
 
 def reevaluate_match_score(
@@ -91,6 +95,7 @@ def render_preview_tab() -> None:
                     cv=cv,
                 )
             except Exception as exc:  # pragma: no cover - LLM errors
+                logger.exception("Summary regeneration failed")
                 st.error(format_llm_error(exc))
             else:
                 if error:

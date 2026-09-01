@@ -7,8 +7,11 @@ from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_VALID_LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR"})
+_DISABLED_LOG_FILE = frozenset({"off", "none", "false", "0"})
 
 # Project root (…/src/cv_generator/config.py → parents[2]).
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -56,9 +59,38 @@ class Settings(BaseSettings):
     google_token_path: Path = Field(default=Path("./secrets/google_token.json"))
     google_drive_template_id: str | None = None
 
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    log_file: str | None = None
+
     def ensure_dirs(self) -> None:
         for d in (self.app_data_dir, self.app_output_dir, self.app_templates_dir):
             d.mkdir(parents=True, exist_ok=True)
+
+    def resolved_log_file(self) -> Path | None:
+        """Path of the rotating log file, or ``None`` when file logging is off.
+
+        Unset / empty ``LOG_FILE`` → ``{app_data_dir}/cv-generator.log``.
+        ``LOG_FILE=off`` (also ``none`` / ``false`` / ``0``) disables the file.
+        Any other value is used as a path.
+        """
+        raw = (self.log_file or "").strip()
+        if raw.lower() in _DISABLED_LOG_FILE:
+            return None
+        if not raw:
+            return self.app_data_dir / "cv-generator.log"
+        return Path(raw)
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _normalize_log_level(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        upper = value.strip().upper()
+        if upper == "WARN":
+            return "WARNING"
+        if upper not in _VALID_LOG_LEVELS:
+            return "INFO"
+        return upper
 
 
 def _parse_env_file() -> dict[str, str]:

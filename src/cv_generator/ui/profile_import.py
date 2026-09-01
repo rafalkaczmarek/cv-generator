@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import streamlit as st
 from pydantic import ValidationError
 
@@ -25,6 +27,8 @@ from cv_generator.services.profile_merge import (
 )
 from cv_generator.ui.profile_editors import sync_education_buffer
 from cv_generator.ui.state import ss_get, strip_entry_id
+
+logger = logging.getLogger(__name__)
 
 
 def sync_profile_form_state(profile: Profile | None) -> None:
@@ -268,8 +272,10 @@ def render_linkedin_url_import() -> None:
             try:
                 profile = profile_from_linkedin_url(url)
             except LinkedInUrlImportError as exc:
+                logger.warning("LinkedIn URL import failed: %s", exc)
                 st.error(str(exc))
             except Exception as exc:  # pragma: no cover - defensive
+                logger.exception("LinkedIn URL import failed")
                 st.error(f"Nie udało się zaimportować danych: {exc}")
             else:
                 apply_imported_profile(profile, source="URL LinkedIn")
@@ -295,8 +301,10 @@ def render_linkedin_url_import() -> None:
                     source_url=url or None,
                 )
             except LinkedInUrlImportError as exc:
+                logger.warning("LinkedIn HTML import failed: %s", exc)
                 st.error(str(exc))
             except Exception as exc:  # pragma: no cover - defensive
+                logger.exception("LinkedIn HTML import failed")
                 st.error(f"Nie udało się zaimportować HTML: {exc}")
             else:
                 apply_imported_profile(profile, source="HTML LinkedIn")
@@ -324,8 +332,10 @@ def render_linkedin_import() -> None:
                 else:
                     profile = profile_from_linkedin_csv(upload.name, data)
             except LinkedInImportError as exc:
+                logger.warning("LinkedIn ZIP/CSV import failed: %s", exc)
                 st.error(str(exc))
             except Exception as exc:  # pragma: no cover - defensive
+                logger.exception("LinkedIn ZIP/CSV import failed")
                 st.error(f"Nie udało się zaimportować danych: {exc}")
             else:
                 apply_imported_profile(profile, source="eksport LinkedIn")

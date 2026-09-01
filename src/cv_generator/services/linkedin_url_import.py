@@ -10,6 +10,7 @@ existing profile instead of replacing it.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from contextlib import suppress
 from datetime import date
@@ -78,6 +79,8 @@ _BROWSER_HEADERS = {
     "Accept-Language": "en,pl;q=0.9",
 }
 
+logger = logging.getLogger(__name__)
+
 
 def is_linkedin_profile_url(url: str) -> bool:
     """Return True when *url* looks like a LinkedIn ``/in/`` profile page."""
@@ -142,13 +145,17 @@ def _fetch_profile_html(url: str) -> str:
             html = response.text
             if response.status_code == 999:
                 if _extract_json_ld_blocks(html) or _section_plain_text(html, "Projects"):
+                    logger.warning("LinkedIn HTTP 999 but page still contained usable data")
                     return html
+                logger.warning("LinkedIn anti-bot response (HTTP 999)")
                 raise LinkedInUrlImportError(_MSG_BLOCKED_999)
             response.raise_for_status()
+            logger.info("Fetched LinkedIn HTML status=%s chars=%d", response.status_code, len(html))
             return html
     except LinkedInUrlImportError:
         raise
     except httpx.HTTPError as exc:
+        logger.warning("LinkedIn profile fetch failed: %s", exc)
         raise LinkedInUrlImportError(
             f"Nie udało się pobrać profilu LinkedIn ({url}): {exc}"
         ) from exc
@@ -956,6 +963,8 @@ def profile_from_linkedin_html(html: str, *, source_url: str | None = None) -> P
     if not text:
         raise LinkedInUrlImportError("Plik HTML jest pusty.")
 
+    logger.info("Importing LinkedIn profile from saved HTML chars=%d", len(text))
+
     fallback = "https://www.linkedin.com/in/imported/"
     if source_url:
         candidate = _profile_base_url(source_url)
@@ -986,6 +995,7 @@ def profile_from_linkedin_url(url: str) -> Profile:
             "https://www.linkedin.com/in/jan-kowalski/"
         )
 
+    logger.info("Importing LinkedIn profile from URL")
     html_main = _fetch_profile_html(base_url)
 
     projects_html = html_main

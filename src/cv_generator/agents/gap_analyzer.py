@@ -6,6 +6,7 @@ with the job's keywords. The output guides the Tailor agent.
 
 from __future__ import annotations
 
+import logging
 import re
 
 from rapidfuzz import fuzz
@@ -18,6 +19,8 @@ _FUZZ_THRESHOLD = 80
 _SHORT_SKILL_MAX_LEN = 2
 # Keep compounds like C++, C#, Objective-C, Node.js, CI/CD as single tokens.
 _TOKEN_RE = re.compile(r"[a-z0-9]+(?:[+#]+|[-./][a-z0-9]+)*", re.IGNORECASE)
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize(value: str) -> str:
@@ -79,6 +82,12 @@ def analyze_gap(profile: Profile, job: JobOffer) -> GapAnalysis:
             + ", ".join(missing[:8])
         )
 
+    logger.info(
+        "Gap analysis matched=%d missing=%d relevant_experiences=%d",
+        len(matched),
+        len(missing),
+        len(relevant_indices),
+    )
     return GapAnalysis(
         matched_skills=matched,
         missing_skills=missing,

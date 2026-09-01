@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 import re
 import zipfile
 from collections.abc import Mapping, Sequence
@@ -47,6 +48,9 @@ __all__ = [
 
 class LinkedInImportError(ValueError):
     """Raised when an upload cannot be interpreted as a LinkedIn export."""
+
+
+logger = logging.getLogger(__name__)
 
 
 # --- date parsing -----------------------------------------------------------
@@ -368,6 +372,7 @@ def profile_from_linkedin_zip(source: bytes | str | Path) -> Profile:
                     if section:
                         sections[section] = _read_rows(zf.read(name).decode("utf-8-sig"))
         except zipfile.BadZipFile as exc:
+            logger.warning("LinkedIn ZIP is not a valid archive")
             raise LinkedInImportError(
                 "Plik nie jest poprawnym archiwum ZIP eksportu LinkedIn."
             ) from exc
@@ -377,6 +382,7 @@ def profile_from_linkedin_zip(source: bytes | str | Path) -> Profile:
             "W archiwum nie znaleziono rozpoznawalnych plików CSV "
             f"({_KNOWN_CSV_FILES})."
         )
+    logger.info("Parsed LinkedIn ZIP export sections=%s", sorted(sections))
     return profile_from_csv_rows(sections)
 
 
@@ -393,4 +399,5 @@ def profile_from_linkedin_csv(filename: str, data: bytes | str) -> Profile:
             f"{_KNOWN_CSV_FILES}."
         )
     text = data.decode("utf-8-sig") if isinstance(data, bytes) else data
+    logger.info("Parsed LinkedIn CSV filename=%s", filename)
     return profile_from_csv_rows({section: _read_rows(text)})

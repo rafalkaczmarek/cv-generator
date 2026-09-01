@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 
 from langchain_core.language_models import BaseChatModel
 
 from cv_generator.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 _PLACEHOLDER_KEYS = frozenset({"sk-...", "sk-your-key-here", "changeme"})
 
@@ -34,6 +37,7 @@ def get_llm(*, json_mode: bool = False) -> BaseChatModel:
         _reject_placeholder_key(settings.openai_api_key, env_var="OPENAI_API_KEY")
         from langchain_openai import ChatOpenAI
 
+        logger.debug("Creating LLM client provider=openai model=%s", settings.openai_model)
         return ChatOpenAI(
             model=settings.openai_model,
             api_key=settings.openai_api_key,
@@ -50,6 +54,7 @@ def get_llm(*, json_mode: bool = False) -> BaseChatModel:
         _reject_placeholder_key(settings.gemini_api_key, env_var="GEMINI_API_KEY")
         from langchain_google_genai import ChatGoogleGenerativeAI
 
+        logger.debug("Creating LLM client provider=gemini model=%s", settings.gemini_model)
         gemini_kwargs: dict = {}
         if json_mode:
             gemini_kwargs["response_mime_type"] = "application/json"
@@ -68,6 +73,7 @@ def get_llm(*, json_mode: bool = False) -> BaseChatModel:
         _reject_placeholder_key(settings.anthropic_api_key, env_var="ANTHROPIC_API_KEY")
         from langchain_anthropic import ChatAnthropic
 
+        logger.debug("Creating LLM client provider=anthropic model=%s", settings.anthropic_model)
         return ChatAnthropic(
             model=settings.anthropic_model,
             api_key=settings.anthropic_api_key,
@@ -77,6 +83,7 @@ def get_llm(*, json_mode: bool = False) -> BaseChatModel:
     if settings.llm_provider == "stub":
         from cv_generator.services.stub_llm import get_stub_llm
 
+        logger.debug("Creating LLM client provider=stub")
         return get_stub_llm()
 
     raise RuntimeError(f"Unsupported LLM provider: {settings.llm_provider}")
@@ -126,7 +133,9 @@ def parse_llm_json(content: object) -> dict:
         start = text.find("{")
         end = text.rfind("}")
         if start == -1 or end == -1:
+            logger.warning("LLM response is not valid JSON")
             raise
+        logger.warning("LLM JSON parsed via brace fallback")
         parsed = json.loads(text[start : end + 1])
     if not isinstance(parsed, dict):
         raise ValueError(f"Expected JSON object from LLM, got {type(parsed).__name__}")

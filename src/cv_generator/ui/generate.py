@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+
 import streamlit as st
 
 from cv_generator.graph.pipeline import generate_cv
 from cv_generator.ui.llm import format_llm_error
 from cv_generator.ui.state import ss_get
+
+logger = logging.getLogger(__name__)
 
 
 def render_generate_tab() -> None:
@@ -49,4 +53,5 @@ def render_generate_tab() -> None:
                 else:
                     st.success(f"Gotowe. Match score: {cv_en.match_score}/100")
             except Exception as exc:  # pragma: no cover - LLM errors
+                logger.exception("CV generation pipeline failed")
                 st.error(format_llm_error(exc))

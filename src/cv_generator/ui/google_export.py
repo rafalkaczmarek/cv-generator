@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import streamlit as st
 
 from cv_generator.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 def document_name_for_cv(*, full_name: str, company: str | None = None) -> str:
@@ -41,10 +44,13 @@ def render_send_to_google_docs_button(
             if link:
                 st.markdown(f"[Otwórz w Google Docs]({link})")
         except GoogleDocsUnavailable as exc:
+            logger.warning("Google Docs extra unavailable: %s", exc)
             st.error(str(exc))
         except FileNotFoundError as exc:
+            logger.warning("Google Docs upload missing file: %s", exc)
             st.error(str(exc))
         except Exception as exc:  # pragma: no cover - OAuth / API errors
+            logger.exception("Google Docs upload failed")
             if "invalid_grant" in str(exc).lower():
                 st.error(
                     "Token Google wygasł lub został odwołany. Usuń "

@@ -19,12 +19,15 @@ Template placeholders match ``_flatten_for_docs``:
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cv_generator.config import get_settings
 from cv_generator.models import TailoredCV
+
+logger = logging.getLogger(__name__)
 
 _STUB_DOC_ID = "stub-doc-id"
 _STUB_WEB_VIEW_LINK = f"https://docs.google.com/document/d/{_STUB_DOC_ID}"
@@ -38,6 +41,7 @@ def _stub_enabled() -> bool:
 def _stub_result(*, document_name: str) -> dict[str, str]:
     _ = document_name  # kept for call-site symmetry / future stub logging
     return {"document_id": _STUB_DOC_ID, "web_view_link": _STUB_WEB_VIEW_LINK}
+
 
 if TYPE_CHECKING:  # pragma: no cover - type-only imports
     from googleapiclient.discovery import Resource
@@ -177,8 +181,10 @@ def upload_docx_to_drive(docx_path: Path, *, document_name: str) -> dict[str, st
         .create(body=metadata, media_body=media, fields="id, webViewLink")
         .execute()
     )
+    document_id = str(created["id"])
+    logger.info("Uploaded DOCX to Google Docs document_id=%s", document_id)
     return {
-        "document_id": str(created["id"]),
+        "document_id": document_id,
         "web_view_link": str(created.get("webViewLink", "")),
     }
 
@@ -217,6 +223,7 @@ def export_cv_to_drive(cv: TailoredCV, *, document_name: str) -> dict[str, str]:
     ]
     docs.documents().batchUpdate(documentId=new_id, body={"requests": requests}).execute()
 
+    logger.info("Filled Google Docs template document_id=%s", new_id)
     return {"document_id": new_id, "web_view_link": copy.get("webViewLink", "")}
 
 

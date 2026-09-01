@@ -8,6 +8,7 @@ Two responsibilities:
 
 from __future__ import annotations
 
+import logging
 import re
 
 from rapidfuzz import fuzz
@@ -17,6 +18,8 @@ from cv_generator.models import JobOffer, Profile, TailoredCV
 _FUZZ_THRESHOLD = 85
 _SHORT_SKILL_MAX_LEN = 2
 _TOKEN_RE = re.compile(r"[a-z0-9]+(?:[+#]+|[-./][a-z0-9]+)*", re.IGNORECASE)
+
+logger = logging.getLogger(__name__)
 
 
 def _norm(value: str) -> str:
@@ -104,6 +107,14 @@ def validate(*, profile: Profile, job: JobOffer, cv: TailoredCV) -> tuple[int, s
         )
     if not feedback_lines:
         feedback_lines.append("Looks good. No issues detected.")
+
+    logger.info(
+        "Validation score=%d matched=%d missing=%d hallucinations=%d",
+        score,
+        len(matched),
+        len(missing),
+        len(hallucinations),
+    )
 
     cv = cv.model_copy(
         update={

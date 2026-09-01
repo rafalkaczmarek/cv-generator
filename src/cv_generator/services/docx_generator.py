@@ -8,6 +8,7 @@ Two responsibilities:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -19,6 +20,8 @@ from docxtpl import DocxTemplate
 
 from cv_generator.config import get_settings
 from cv_generator.models import TailoredCV
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_TEMPLATE_NAME = "cv_template.docx"
 
@@ -164,6 +167,7 @@ def render_cv(
     doc = DocxTemplate(str(template_path))
     doc.render({"cv": cv.model_dump(), "labels": section_labels_for(lang)})
     doc.save(str(output_path))
+    logger.info("Rendered DOCX template=%s output=%s", template_path.name, output_path.name)
     return output_path
 
 

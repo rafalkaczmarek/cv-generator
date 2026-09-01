@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+
 import streamlit as st
 
 from cv_generator.agents.job_analyzer import JobFetchError, analyze_job
 from cv_generator.models import JobOffer
 from cv_generator.ui.llm import format_llm_error
 from cv_generator.ui.state import ss_get, storage
+
+logger = logging.getLogger(__name__)
 
 
 def render_job_tab() -> None:
@@ -26,10 +30,13 @@ def render_job_tab() -> None:
                     storage().save_job_offer(offer)
                     st.success(f"Oferta przeanalizowana: {offer.title} @ {offer.company}")
                 except JobFetchError as exc:
+                    logger.warning("Job offer fetch failed: %s", exc)
                     st.error(f"Nie udało się pobrać oferty: {exc}")
                 except ValueError as exc:
+                    logger.warning("Job offer analysis failed: %s", exc)
                     st.error(f"Nie udało się przeanalizować oferty: {exc}")
                 except Exception as exc:  # pragma: no cover - LLM/network errors
+                    logger.exception("Job offer analysis failed")
                     st.error(format_llm_error(exc))
 
     offer: JobOffer | None = ss_get("job_offer")

@@ -19,19 +19,24 @@ from cv_generator.models import (
 
 
 @pytest.fixture(autouse=True)
-def _isolate_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def _isolate_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Redirect all data/output/templates dirs to a per-test tmpdir.
 
     Sets ``CV_GENERATOR_IGNORE_ENV_FILE=1`` so :func:`get_settings` doesn't
     reload the project's ``.env`` (which would clobber the paths below via
     ``load_dotenv(override=True)`` and break DB isolation between tests).
     """
+    from cv_generator.logging_setup import reset_logging
+
     monkeypatch.setenv("APP_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("APP_OUTPUT_DIR", str(tmp_path / "output"))
     monkeypatch.setenv("APP_TEMPLATES_DIR", str(tmp_path / "templates"))
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     monkeypatch.setenv("CV_GENERATOR_IGNORE_ENV_FILE", "1")
+    reset_logging()
+    yield
+    reset_logging()
 
 
 @pytest.fixture

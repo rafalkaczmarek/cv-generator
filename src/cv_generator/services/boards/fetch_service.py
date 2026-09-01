@@ -77,6 +77,7 @@ class BoardFetchService:
         if not client_map:
             return result
 
+        logger.info("Refreshing boards sources=%s", [s.value for s in client_map])
         with ThreadPoolExecutor(max_workers=len(client_map)) as executor:
             future_to_source = {
                 executor.submit(_safe_fetch, client, query): source
@@ -109,6 +110,12 @@ class BoardFetchService:
                 else:
                     result.fetched[source] = 0
 
+        logger.info(
+            "Board refresh finished fetched=%s inactivated=%s errors=%s",
+            {s.value: n for s, n in result.fetched.items()},
+            {s.value: n for s, n in result.inactivated.items()},
+            {s.value: msg for s, msg in result.errors.items()},
+        )
         return result
 
 

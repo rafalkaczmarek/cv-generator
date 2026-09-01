@@ -6,6 +6,7 @@ re-phrase, reorder and emphasize what is already in the profile.
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -13,6 +14,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from cv_generator.graph.state import GapAnalysis
 from cv_generator.models import Experience, JobOffer, Profile, TailoredCV, TailoredExperience
 from cv_generator.services.llm import get_json_llm, get_llm, parse_llm_json
+
+logger = logging.getLogger(__name__)
 
 # LinkedIn import uses 1900-01-01 when a date could not be parsed.
 _UNKNOWN_YEAR = 1900
@@ -82,6 +85,7 @@ def tailor_cv(
     feedback: str = "",
     language: str = "en",
 ) -> TailoredCV:
+    logger.info("Tailoring CV language=%s has_feedback=%s", language, bool(feedback.strip()))
     llm = get_json_llm() if _supports_json_mode() else get_llm()
 
     prompt = ChatPromptTemplate.from_messages([("system", _SYSTEM), ("user", _USER)])
@@ -115,6 +119,7 @@ def rewrite_summary(
     language: str = "en",
 ) -> str:
     """Generate an alternative professional summary for an existing tailored CV."""
+    logger.info("Rewriting CV summary language=%s", language)
     llm = get_json_llm() if _supports_json_mode() else get_llm()
 
     prompt = ChatPromptTemplate.from_messages(

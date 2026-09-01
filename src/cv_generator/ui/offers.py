@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -27,6 +28,8 @@ from cv_generator.ui.google_export import (
 )
 from cv_generator.ui.llm import format_llm_error
 from cv_generator.ui.state import ss_get, storage
+
+logger = logging.getLogger(__name__)
 
 
 def render_offers_tab() -> None:
@@ -177,6 +180,7 @@ def _run_refresh(profile: Profile, sources: list[BoardSource]) -> None:
         try:
             result = service.refresh(sources=sources, query=query)
         except Exception as exc:  # pragma: no cover - defensive UX guard
+            logger.exception("Board offer refresh failed")
             st.error(f"Nie udało się odświeżyć: {exc}")
             return
     st.session_state.offers_last_refresh_result = result
@@ -343,15 +347,18 @@ def _generate_cv_for_offer(profile: Profile, result: MatchResult) -> None:
         try:
             job = _board_offer_to_job_offer(offer)
         except JobFetchError as exc:
+            logger.warning("Board offer fetch failed: %s", exc)
             st.error(f"Nie udało się pobrać treści oferty: {exc}")
             return
         except Exception as exc:  # pragma: no cover - LLM error path
+            logger.exception("Board offer analysis failed")
             st.error(format_llm_error(exc))
             return
 
         try:
             cv = generate_cv(profile, job)
         except Exception as exc:  # pragma: no cover - LLM error path
+            logger.exception("CV generation from board offer failed")
             st.error(format_llm_error(exc))
             return
 
@@ -362,6 +369,7 @@ def _generate_cv_for_offer(profile: Profile, result: MatchResult) -> None:
                 language=cv.language,
             )
         except Exception as exc:  # pragma: no cover - filesystem/template errors
+            logger.exception("DOCX render from board offer failed")
             st.error(f"Nie udało się zapisać DOCX: {exc}")
             return
 

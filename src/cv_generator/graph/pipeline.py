@@ -8,6 +8,8 @@ Flow:
 
 from __future__ import annotations
 
+import logging
+
 from langgraph.graph import END, StateGraph
 
 from cv_generator.agents.gap_analyzer import analyze_gap
@@ -17,8 +19,11 @@ from cv_generator.config import get_settings
 from cv_generator.graph.state import GenerationState
 from cv_generator.models import JobOffer, Profile, TailoredCV
 
+logger = logging.getLogger(__name__)
+
 
 def _gap_node(state: GenerationState) -> GenerationState:
+    logger.info("Pipeline node=gap")
     profile = state["profile"]
     job = state["job"]
     return {"gap": analyze_gap(profile, job), "iteration": state.get("iteration", 0)}
@@ -27,6 +32,8 @@ def _gap_node(state: GenerationState) -> GenerationState:
 def _tailor_node(state: GenerationState) -> GenerationState:
     settings = get_settings()
     language = state.get("language") or settings.app_language
+    iteration = state.get("iteration", 0)
+    logger.info("Pipeline node=tailor iteration=%d language=%s", iteration, language)
     cv = tailor_cv(
         profile=state["profile"],
         job=state["job"],
@@ -34,10 +41,11 @@ def _tailor_node(state: GenerationState) -> GenerationState:
         feedback=state.get("feedback", ""),
         language=language,
     )
-    return {"tailored": cv, "iteration": state.get("iteration", 0) + 1}
+    return {"tailored": cv, "iteration": iteration + 1}
 
 
 def _validator_node(state: GenerationState) -> GenerationState:
+    logger.info("Pipeline node=validator iteration=%d", state.get("iteration", 0))
     score, feedback, cv = validate(
         profile=state["profile"], job=state["job"], cv=state["tailored"]
     )
@@ -49,7 +57,9 @@ def _route_after_validation(state: GenerationState) -> str:
     score = state.get("score", 0)
     iteration = state.get("iteration", 0)
     if score >= settings.min_match_score or iteration >= settings.max_tailor_iterations:
+        logger.info("Pipeline done score=%d iteration=%d", score, iteration)
         return "done"
+    logger.info("Pipeline retry score=%d iteration=%d", score, iteration)
     return "retry"
 
 
@@ -78,13 +88,20 @@ def generate_cv(
 ) -> TailoredCV:
     """Run the pipeline synchronously and return the final TailoredCV."""
     settings = get_settings()
+    language = language or settings.app_language
+    logger.info("Starting CV generation language=%s", language)
     graph = build_graph()
     final_state = graph.invoke(
         {
             "profile": profile,
             "job": job,
             "iteration": 0,
-            "language": language or settings.app_language,
+            "language": language,
         }
+    )
+    logger.info(
+        "CV generation finished score=%s language=%s",
+        final_state.get("score"),
+        language,
     )
     return final_state["tailored"]

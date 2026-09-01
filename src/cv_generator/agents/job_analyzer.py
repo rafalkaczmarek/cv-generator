@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+
 from langchain_core.prompts import ChatPromptTemplate
 
 from cv_generator.models import JobOffer
 from cv_generator.services.job_fetcher import JobFetchError, fetch_job_text
 from cv_generator.services.llm import get_json_llm, parse_llm_json
+
+logger = logging.getLogger(__name__)
 
 _SYSTEM = (
     "You are a recruitment analyst. Given the raw text of a job offer, extract "
@@ -34,7 +38,9 @@ def analyze_job(*, url: str | None, raw_text: str | None) -> JobOffer:
     if not raw_text and not url:
         raise ValueError("Either url or raw_text must be provided")
 
+    source = "raw_text" if raw_text else "url"
     text = raw_text or fetch_job_text(url)  # type: ignore[arg-type]
+    logger.info("Analyzing job offer source=%s chars=%d", source, len(text))
 
     llm = get_json_llm()
     prompt = ChatPromptTemplate.from_messages([("system", _SYSTEM), ("user", _USER)])
@@ -43,7 +49,7 @@ def analyze_job(*, url: str | None, raw_text: str | None) -> JobOffer:
     response = chain.invoke({"url": url or "(pasted text, no URL)", "raw_text": text[:12000]})
     parsed = parse_llm_json(response.content)
 
-    return JobOffer(
+    offer = JobOffer(
         url=url,
         raw_text=text,
         title=parsed.get("title"),
@@ -54,6 +60,14 @@ def analyze_job(*, url: str | None, raw_text: str | None) -> JobOffer:
         responsibilities=_as_str_list(parsed.get("responsibilities")),
         keywords=_as_str_list(parsed.get("keywords")),
     )
+    logger.info(
+        "Job analyzed title=%s company=%s requirements=%d keywords=%d",
+        offer.title,
+        offer.company,
+        len(offer.requirements),
+        len(offer.keywords),
+    )
+    return offer
 
 
 def _as_str_list(value: object) -> list[str]:

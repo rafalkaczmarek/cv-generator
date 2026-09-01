@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import streamlit as st
@@ -14,6 +15,8 @@ from cv_generator.ui.google_export import (
     render_send_to_google_docs_button,
 )
 from cv_generator.ui.state import ss_get, storage
+
+logger = logging.getLogger(__name__)
 
 _LAST_EXPORT_KEY = "last_export_artifacts"
 
@@ -136,6 +139,7 @@ def render_export_tab() -> None:
                 paths, cv=cv, cv_pl=cv_pl, offer=offer
             )
         except Exception as exc:  # pragma: no cover - filesystem/template errors
+            logger.exception("DOCX export failed")
             st.error(f"Nie udało się zapisać DOCX: {exc}")
 
     artifacts = ss_get(_LAST_EXPORT_KEY) or []
@@ -204,6 +208,8 @@ def _render_template_based_google_export(
                 if link:
                     st.markdown(f"[Otwórz w Google Docs]({link})")
             except GoogleDocsUnavailable as exc:
+                logger.warning("Google Docs extra unavailable: %s", exc)
                 st.error(str(exc))
             except Exception as exc:  # pragma: no cover - OAuth / API errors
+                logger.exception("Google Docs template export failed")
                 st.error(f"Nie udało się wyeksportować do Google Docs: {exc}")
